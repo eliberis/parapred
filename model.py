@@ -1,6 +1,6 @@
 from keras.engine import Model
 from keras.layers import Layer, Bidirectional, TimeDistributed, \
-    Dense, LSTM, Masking, Input, merge, RepeatVector
+    Dense, LSTM, Masking, Input, merge, RepeatVector, Dropout
 import keras.backend as K
 
 def false_rates(y_true, y_pred):
@@ -42,9 +42,10 @@ def get_model(max_ag_len, max_cdr_len):
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
     ab_ag_repr = merge([ab_net_out, enc_ag_rep], mode='concat')
-    ab_ag_repr_m = MaskingByLambda(mask)(ab_ag_repr)
+    ab_ag_repr = MaskingByLambda(mask)(ab_ag_repr)
+    ab_ag_repr = Dropout(0.1)(ab_ag_repr)
 
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr_m)
+    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
     model = Model(input=[input_ag, input_ab], output=aa_probs)
     model.compile(loss='binary_crossentropy',
                   optimizer='adam', metrics=['binary_accuracy',

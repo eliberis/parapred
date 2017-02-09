@@ -3,6 +3,8 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, \
     Dense, LSTM, Masking, Input, merge, RepeatVector, Dropout
 import keras.backend as K
 
+NUM_FEATS = 21 + 7 # One-hot + 7 features
+
 def false_rates(y_true, y_pred):
     false_neg = K.mean(K.clip(y_true - K.round(y_pred), 0.0, 1.0))
     false_pos = K.mean(K.clip(K.round(y_pred) - y_true, 0.0, 1.0))
@@ -30,11 +32,11 @@ def mask(input, mask):
     return K.any(K.not_equal(input[:, :, :64], 0.0), axis=-1)
 
 def get_model(max_ag_len, max_cdr_len):
-    input_ag = Input(shape=(max_ag_len, 21))
+    input_ag = Input(shape=(max_ag_len, NUM_FEATS))
     input_ag_m = Masking()(input_ag)
     enc_ag = Bidirectional(LSTM(32), merge_mode='concat')(input_ag_m)
 
-    input_ab = Input(shape=(max_cdr_len, 21))
+    input_ab = Input(shape=(max_cdr_len, NUM_FEATS))
     input_ab_m = Masking()(input_ab)
 
     ab_net_out = Bidirectional(LSTM(32, return_sequences=True),

@@ -4,6 +4,7 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, \
 import keras.backend as K
 
 NUM_FEATS = 21 + 7 # One-hot + 7 features
+RNN_STATE_SIZE = 64
 
 def false_rates(y_true, y_pred):
     false_neg = K.mean(K.clip(y_true - K.round(y_pred), 0.0, 1.0))
@@ -27,19 +28,19 @@ class MaskingByLambda(Layer):
         exd_mask = K.expand_dims(self.mask_func(x, mask), dim=-1)
         return x * K.cast(exd_mask, K.floatx())
 
-# Base masking decision only on the first 64 elements
+# Base masking decision only on the first elements
 def mask(input, mask):
-    return K.any(K.not_equal(input[:, :, :64], 0.0), axis=-1)
+    return K.any(K.not_equal(input[:, :, :(2*RNN_STATE_SIZE)], 0.0), axis=-1)
 
 def get_model(max_ag_len, max_cdr_len):
     input_ag = Input(shape=(max_ag_len, NUM_FEATS))
     input_ag_m = Masking()(input_ag)
-    enc_ag = Bidirectional(LSTM(32), merge_mode='concat')(input_ag_m)
+    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE), merge_mode='concat')(input_ag_m)
 
     input_ab = Input(shape=(max_cdr_len, NUM_FEATS))
     input_ab_m = Masking()(input_ab)
 
-    ab_net_out = Bidirectional(LSTM(32, return_sequences=True),
+    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
                                merge_mode='concat')(input_ab_m)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)

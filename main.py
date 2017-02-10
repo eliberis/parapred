@@ -33,10 +33,13 @@ def plot_prec_rec_curve(model, ags_test, examples_test, labels_test):
         np.array([0.78, 0.74, 0.66, 0.62, 0.56, 0.51, 0.5, 0.48, 0.45, 0.44])
 
     test_probabilities = model.predict([ags_test, examples_test])
-    print(labels_test.shape)
-    print(test_probabilities.shape)
     prec, rec, thresholds = metrics.precision_recall_curve(
         labels_test.flatten(), test_probabilities.flatten())
+
+    # Maximum interpolation
+    for i in range(len(prec)):
+        prec[i] = prec[:(i+1)].max()
+
     plt.plot(rec, prec)
     plt.plot(abip_rec, abip_pre)
 
@@ -57,19 +60,19 @@ def main():
     model = get_model(params["max_ag_len"], params["max_cdr_len"])
     print(model.summary())
 
-    test_size = round(len(examples) * 0.05)
-    ags_train = ags[:-test_size]
-    examples_train = examples[:-test_size]
-    labels_train = labels[:-test_size]
-    ags_test = ags[-test_size:]
-    examples_test = examples[-test_size:]
-    labels_test = labels[-test_size:]
+    test_size = round(len(examples) * 0.20)
+    indices = np.random.permutation(len(examples))
+
+    ags_train = ags[indices[:-test_size]]
+    examples_train = examples[indices[:-test_size]]
+    labels_train = labels[indices[:-test_size]]
+    ags_test = ags[indices[-test_size:]]
+    examples_test = examples[indices[-test_size:]]
+    labels_test = labels[indices[-test_size:]]
 
     history = model.fit([ags_train, examples_train], labels_train,
                         batch_size=32, nb_epoch=30,
                         sample_weight=np.squeeze(labels_train * 5 + 1))
-
-    model.save_weights("drop-5-30-noval-lstm64-allin.h5")
 
     plot_prec_rec_curve(model, ags_test, examples_test, labels_test)
 

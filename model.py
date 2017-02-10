@@ -35,11 +35,14 @@ def mask(input, mask):
 def get_model(max_ag_len, max_cdr_len):
     input_ag = Input(shape=(max_ag_len, NUM_FEATS))
     input_ag_m = Masking()(input_ag)
-    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE), merge_mode='concat')(input_ag_m)
+    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE, dropout_U=0.1),
+                           merge_mode='concat')(input_ag_m)
 
     input_ab = Input(shape=(max_cdr_len, NUM_FEATS))
     input_ab_m = Masking()(input_ab)
 
+    # Adding dropout_U here is a bad idea --- sequences are very short and
+    # all information is essential
     ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
                                merge_mode='concat')(input_ab_m)
 

@@ -1,10 +1,12 @@
 from keras.engine import Model
 from keras.layers import Layer, Bidirectional, TimeDistributed, \
-    Dense, LSTM, Masking, Input, merge, RepeatVector, Dropout
+    Dense, LSTM, Masking, Input, merge, RepeatVector, Dropout, Convolution1D
 import keras.backend as K
 
 NUM_FEATS = 21 + 7 # One-hot + 7 features
 RNN_STATE_SIZE = 64
+CONV_FILTERS = 32
+CONV_FILTER_SPAN = 9
 
 def false_rates(y_true, y_pred):
     false_neg = K.mean(K.clip(y_true - K.round(y_pred), 0.0, 1.0))
@@ -32,11 +34,32 @@ class MaskingByLambda(Layer):
 def mask(input, mask):
     return K.any(K.not_equal(input[:, :, :(2*RNN_STATE_SIZE)], 0.0), axis=-1)
 
+# 1D convolution that supports masking by retaining the mask of the input
+class MaskedConvolution1D(Convolution1D):
+    def __init__(self, *args, **kwargs):
+        self.supports_masking = True
+        assert kwargs['border_mode'] == 'same' # Only makes sense for 'same'
+        super(MaskedConvolution1D, self).__init__(*args, **kwargs)
+
+    def compute_mask(self, input, input_mask=None):
+        return input_mask
+
+    def call(self, x, mask=None):
+        assert mask is not None
+        mask = K.expand_dims(mask, dim=-1)
+        x = super(MaskedConvolution1D, self).call(x, mask)
+        return x * K.cast(mask, K.floatx())
+
 def get_model(max_ag_len, max_cdr_len):
     input_ag = Input(shape=(max_ag_len, NUM_FEATS))
     input_ag_m = Masking()(input_ag)
+
+    input_ag_conv = MaskedConvolution1D(CONV_FILTERS, CONV_FILTER_SPAN,
+                                        border_mode='same')(input_ag_m)
+    input_ag_m2 = Masking()(input_ag_conv) # Probably unnecessary, investigate
+
     enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE, dropout_U=0.1),
-                           merge_mode='concat')(input_ag_m)
+                           merge_mode='concat')(input_ag_m2)
 
     input_ab = Input(shape=(max_cdr_len, NUM_FEATS))
     input_ab_m = Masking()(input_ab)

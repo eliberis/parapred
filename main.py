@@ -60,6 +60,7 @@ def main():
     model = get_model(params["max_ag_len"], params["max_cdr_len"])
     print(model.summary())
 
+    np.random.seed(seed=0)
     test_size = round(len(examples) * 0.20)
     indices = np.random.permutation(len(examples))
 

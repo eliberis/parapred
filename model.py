@@ -27,12 +27,21 @@ def bidirectional_rnn(cell_fwd, cell_bwd):
     return rnn
 
 
+def pad_input(seq):
+    pad_l = [np.zeros((NUM_FEATS, ), dtype='float32')
+             for _ in range(CONV_FILTER_SPAN-1)]
+    pad_r = [np.zeros((NUM_FEATS, ), dtype='float32')
+             for _ in range(CONV_FILTER_SPAN-1)]
+    return pad_l + seq + pad_r
+
+
 def get_model():
     model = td.Composition()
     with model.scope():
-        inp_block = td.Record({'ag': td.Map(td.Vector(NUM_FEATS)),
-                               'ab': td.Map(td.Vector(NUM_FEATS)),
-                               'lb': td.Map(td.Scalar())}).reads(model.input)
+        inp_block = \
+            td.Record({'ag': td.InputTransform(pad_input) >> td.Map(td.Vector(NUM_FEATS)),
+                       'ab': td.InputTransform(pad_input) >> td.Map(td.Vector(NUM_FEATS)),
+                       'lb': td.Map(td.Scalar())}).reads(model.input)
         ag_seq = td.GetItem(0).reads(inp_block)
         ab_seq = td.GetItem(1).reads(inp_block)
         labels = td.GetItem(2).reads(inp_block)
@@ -45,10 +54,10 @@ def get_model():
         ag_bwd_lstm_cell = td.ScopedLayer(
             tf.contrib.rnn.LSTMCell(num_units=RNN_STATE_SIZE))
 
-        # ag_conv = td.FC(CONV_FILTERS, activation=None)
-        # ag_sum = (td.NGrams(CONV_FILTER_SPAN) >> # Not 'same', just 'valid'
-        #           td.Map(ag_conv) >>  # 1D convolution is equiv to FC
-        ag_sum = (bidirectional_rnn(ag_fwd_lstm_cell, ag_bwd_lstm_cell) >>
+        ag_conv = td.FC(CONV_FILTERS, activation=None)
+        ag_sum = (td.NGrams(CONV_FILTER_SPAN) >> # Not 'same', just 'valid'
+                  td.Map(td.Concat() >> ag_conv) >>
+                  bidirectional_rnn(ag_fwd_lstm_cell, ag_bwd_lstm_cell) >>
                   td.GetItem(1)).reads(ag_seq)
         ab_fwd_lstm_cell = td.ScopedLayer(
             tf.contrib.rnn.LSTMCell(num_units=RNN_STATE_SIZE))
@@ -68,8 +77,9 @@ def get_model():
         output_probs = td.Map(td.Function(tf.nn.sigmoid)).reads(output_logits)
 
         # Compute loss (TODO: implement binary x-entropy)
-        loss = (td.ZipWith(td.Function(tf.squared_difference)) >>
-                td.Sum()).reads(output_logits, labels)
+        lossfn = lambda lg, lb: -(lg * lb) + tf.log(1 + tf.exp(lg))
+        loss = (td.ZipWith(td.Function(lossfn)) >>
+                td.Mean()).reads(output_logits, labels)
         td.Metric('loss').reads(loss)
 
         output = td.Map(td.Metric('probs')).reads(output_probs)

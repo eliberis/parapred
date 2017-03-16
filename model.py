@@ -39,8 +39,10 @@ def get_model():
     model = td.Composition()
     with model.scope():
         inp_block = \
-            td.Record({'ag': td.InputTransform(pad_input) >> td.Map(td.Vector(NUM_FEATS)),
-                       'ab': td.InputTransform(pad_input) >> td.Map(td.Vector(NUM_FEATS)),
+            td.Record({'ag': td.InputTransform(pad_input) >>
+                             td.Map(td.Vector(NUM_FEATS)),
+                       'ab': td.InputTransform(pad_input) >>
+                             td.Map(td.Vector(NUM_FEATS)),
                        'lb': td.Map(td.Scalar())}).reads(model.input)
         ag_seq = td.GetItem(0).reads(inp_block)
         ab_seq = td.GetItem(1).reads(inp_block)
@@ -55,7 +57,7 @@ def get_model():
             tf.contrib.rnn.LSTMCell(num_units=RNN_STATE_SIZE))
 
         ag_conv = td.FC(CONV_FILTERS, activation=None)
-        ag_sum = (td.NGrams(CONV_FILTER_SPAN) >> # Not 'same', just 'valid'
+        ag_sum = (td.NGrams(CONV_FILTER_SPAN) >>
                   td.Map(td.Concat() >> ag_conv) >>
                   bidirectional_rnn(ag_fwd_lstm_cell, ag_bwd_lstm_cell) >>
                   td.GetItem(1)).reads(ag_seq)

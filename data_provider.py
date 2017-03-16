@@ -15,9 +15,6 @@ def compute_entries():
     max_cdr_len = DATASET_MAX_CDR_LEN
     max_ag_len = DATASET_MAX_AG_LEN
 
-    all_cdrs = []
-    all_lbls = []
-    all_ags = []
     for _, entry in train_df.iterrows():
         print("Processing PDB: ", entry['PDB'])
 
@@ -26,21 +23,13 @@ def compute_entries():
         ab_l_chain = entry['Ab Light Chain']
         ag_chain = entry['Ag']
 
-        ag_repl, cdrs, lbls, _ = open_single_pdb(pdb_file, ab_h_chain,
-                                                 ab_l_chain, ag_chain,
-                                                 max_ag_len=max_ag_len,
-                                                 max_cdr_len=max_cdr_len)
+        ag, cdrs, lbls, _ = open_single_pdb(pdb_file, ab_h_chain,
+                                            ab_l_chain, ag_chain,
+                                            max_ag_len=max_ag_len,
+                                            max_cdr_len=max_cdr_len)
 
-        all_cdrs.append(cdrs)
-        all_lbls.append(lbls)
-        all_ags.append(ag_repl)
-
-    cdrs = np.concatenate(all_cdrs, axis=0)
-    lbls = np.concatenate(all_lbls, axis=0)
-    ags = np.concatenate(all_ags, axis=0)
-
-    return (ags, cdrs, lbls,
-            {"max_cdr_len": max_cdr_len, "max_ag_len": max_ag_len})
+        for i in range(6):
+            yield {"ag": ag, "ab": cdrs[i], "lb": lbls[i]}
 
 
 def open_dataset():
@@ -50,7 +39,7 @@ def open_dataset():
             dataset = pickle.load(f)
     else:
         print("Computing and storing the dataset...")
-        dataset = compute_entries()
+        dataset = list(compute_entries())
         with open(DATASET_PICKLE, "wb") as f:
             pickle.dump(dataset, f)
 
@@ -83,29 +72,12 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
     ag = residue_seq_to_one(ag)
 
     # Convert to matrices
-    cdr_mats = []
-    cont_mats = []
+    cdr_lists = []
+    cont_lists = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
-        cdr_chain = cdrs[cdr_name]
-        cdr_mat = seq_to_one_hot(cdr_chain)
-        cdr_mat_pad = np.zeros((max_cdr_len, NUM_FEATURES))
-        cdr_mat_pad[:cdr_mat.shape[0], :] = cdr_mat
-        cdr_mats.append(cdr_mat_pad)
+        cdr_lists.append([aa_encoded(r) for r in cdrs[cdr_name]])
+        cont_lists.append(contact[cdr_name])
 
-        cont_mat = np.array(contact[cdr_name], dtype=float)
-        cont_mat_pad = np.zeros((max_cdr_len, 1))
-        cont_mat_pad[:cont_mat.shape[0], 0] = cont_mat
-        cont_mats.append(cont_mat_pad)
+    ag_list = [aa_encoded(r) for r in ag]
 
-    cdrs = np.stack(cdr_mats)
-    lbls = np.stack(cont_mats)
-
-    ag_mat = seq_to_one_hot(ag)
-    ag_mat_pad = np.zeros((max_ag_len, NUM_FEATURES))
-    ag_mat_pad[:ag_mat.shape[0], :] = ag_mat
-
-    # Replicate AG chain 6 times
-    ag_repl = np.resize(ag_mat_pad,
-                        (6, ag_mat_pad.shape[0], ag_mat_pad.shape[1]))
-
-    return ag_repl, cdrs, lbls, structure
+    return ag_list, cdr_lists, cont_lists, structure

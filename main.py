@@ -3,7 +3,8 @@ from model import get_model
 from sklearn import metrics
 import numpy as np
 import matplotlib.pyplot as plt
-
+import tensorflow_fold as td
+import tensorflow as tf
 
 def plot_accuracies(history):
     plt.interactive(False)
@@ -50,40 +51,63 @@ def plot_prec_rec_curve(model, ags_test, examples_test, labels_test):
 
     plt.savefig("proc.png")
 
+
 def main():
-    ags, cdrs, lbls, params = open_dataset()
+    dataset = open_dataset()
+    model = get_model()
 
-    print("Ags:", ags.shape)
-    print("CDRs:", cdrs.shape)
-    print("Labels:", lbls.shape)
+    compiler = td.Compiler.create(model)
+    loss = compiler.metric_tensors['loss']
+    train = tf.train.AdamOptimizer().minimize(loss)
+    num_epochs = 20
+    batch_size = 32
 
-    max_ag_len = params["max_ag_len"]
-    max_cdr_len = params["max_cdr_len"]
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
 
-    print("Max AG length:", max_ag_len)
-    print("Max CDR length:", max_cdr_len)
+    train_set = compiler.build_loom_inputs(dataset)
+    train_feed_dict = {}  # add feeds for e.g. dropout here
 
-    model = get_model(params["max_ag_len"], params["max_cdr_len"])
-    print(model.summary())
+    for epoch, shuffled in enumerate(td.epochs(train_set, num_epochs), 1):
+        train_loss = 0.0
+        ex_processed = 0
+        for batch in td.group_by_batches(shuffled, batch_size):
+            train_feed_dict[compiler.loom_input_tensor] = batch
+            _, batch_loss = sess.run([train, loss], train_feed_dict)
+            train_loss += sum(batch_loss)
+            ex_processed += len(batch_loss)
+            print('Examples processed:', ex_processed)
+        print('epoch: %s train: %s' % (epoch, train_loss))
 
-    np.random.seed(seed=0)  # TODO replace with stratified split
-    test_size = round(len(cdrs) * 0.20)
-    indices = np.random.permutation(len(cdrs))
+    # plan = td.TrainPlan()
+    # plan.losses['loss'] = loss
+    # plan.examples = dataset
+    # plan.compiler = compiler
+    # plan.train_op = opt
+    # plan.epochs = 30
+    # plan.batch_size = 32
+    # plan.logdir = "log"
+    # plan.finalize_stats()
+    # plan.run()
 
-    ags_train = ags[indices[:-test_size]]
-    cdrs_train = cdrs[indices[:-test_size]]
-    lbls_train = lbls[indices[:-test_size]]
-    ags_test = ags[indices[-test_size:]]
-    cdrs_test = cdrs[indices[-test_size:]]
-    lbls_test = lbls[indices[-test_size:]]
-    example_weight = np.squeeze(lbls_train * 5 + 1)  # 6-to-1 in favour of 1
+    # np.random.seed(seed=0)  # TODO replace with stratified split
+    # test_size = round(len(cdrs) * 0.20)
+    # indices = np.random.permutation(len(cdrs))
+    #
+    # ags_train = ags[indices[:-test_size]]
+    # cdrs_train = cdrs[indices[:-test_size]]
+    # lbls_train = lbls[indices[:-test_size]]
+    # ags_test = ags[indices[-test_size:]]
+    # cdrs_test = cdrs[indices[-test_size:]]
+    # lbls_test = lbls[indices[-test_size:]]
+    # example_weight = np.squeeze(lbls_train * 5 + 1)  # 6-to-1 in favour of 1
 
-    history = model.fit([ags_train, cdrs_train], lbls_train,
-                        batch_size=32, nb_epoch=30,
-                        sample_weight=example_weight)
-
-    model.save_weights("current.h5")
-    plot_prec_rec_curve(model, ags_test, cdrs_test, lbls_test)
+    # history = model.fit([ags_train, cdrs_train], lbls_train,
+    #                     batch_size=32, nb_epoch=30,
+    #                     sample_weight=example_weight)
+    #
+    # model.save_weights("current.h5")
+    # plot_prec_rec_curve(model, ags_test, cdrs_test, lbls_test)
 
 if __name__ == "__main__":
     main()

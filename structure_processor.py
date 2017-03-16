@@ -1,6 +1,5 @@
 from Bio.PDB import *
 from Bio.PDB.Model import Model
-from keras.utils.np_utils import to_categorical
 import numpy as np
 
 # Config constants
@@ -95,12 +94,19 @@ def aa_features():
     return np.array(prop1)
 
 
-def seq_to_one_hot(res_seq_one):
-    ints = one_to_number(res_seq_one)
-    feats = aa_features()[ints]
-    onehot = to_categorical(ints, nb_classes=len(aa_s))
-    return np.concatenate((onehot, feats), axis=1)
+# def seq_to_one_hot(res_seq_one):
+#     ints = one_to_number(res_seq_one)
+#     feats = aa_features()[ints]
+#     onehot = to_categorical(ints, nb_classes=len(aa_s))
+#     return np.concatenate((onehot, feats), axis=1)
 
+def aa_encoded(r):
+    r_int = aa_s.index(r)
+    enc = np.zeros((NUM_FEATURES, ))
+    enc[r_int] = 1.0
+    feats = aa_features()[r_int]
+    enc[len(aa_s):] = feats
+    return enc
 
 def atom_in_contact_with_chain(a, c):
     for c_res in c.get_unpacked_list():

@@ -98,7 +98,7 @@ def aa_features():
 def seq_to_one_hot(res_seq_one):
     ints = one_to_number(res_seq_one)
     feats = aa_features()[ints]
-    onehot = to_categorical(ints, nb_classes=len(aa_s))
+    onehot = to_categorical(ints, num_classes=len(aa_s))
     return np.concatenate((onehot, feats), axis=1)
 
 

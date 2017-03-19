@@ -57,10 +57,14 @@ def get_model(keep_prob=1.0):
         # TODO: add dropout
         # TODO: fix initialisations
         ag_fwd_lstm_cell = td.ScopedLayer(
-            tf.contrib.rnn.LSTMCell(num_units=RNN_STATE_SIZE))
+            tf.contrib.rnn.DropoutWrapper(
+                tf.contrib.rnn.LSTMCell(num_units=RNN_STATE_SIZE),
+            input_keep_prob=keep_prob, output_keep_prob=keep_prob))
 
         ag_bwd_lstm_cell = td.ScopedLayer(
-            tf.contrib.rnn.LSTMCell(num_units=RNN_STATE_SIZE))
+            tf.contrib.rnn.DropoutWrapper(
+                tf.contrib.rnn.LSTMCell(num_units=RNN_STATE_SIZE),
+            input_keep_prob=keep_prob, output_keep_prob=keep_prob))
 
         ag_sum = (conv1d(CONV_FILTERS, CONV_FILTER_SPAN) >>
                   bidirectional_rnn(ag_fwd_lstm_cell, ag_bwd_lstm_cell) >>

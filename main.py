@@ -64,13 +64,13 @@ def main():
     train_set = dataset[:-test_size]
     test_set = dataset[-test_size:]
 
-    train_and_save(train_set)
+    # train_and_save(train_set)
     lbls, preds = eval(test_set)
     plot_prec_rec_curve(lbls, preds)
 
 
 def train_and_save(dataset, batch_size=32, num_epochs=30):
-    model = get_model(keep_prob=0.85)
+    model = get_model(keep_prob=0.8)
     compiler = td.Compiler.create(model)
 
     loss = compiler.metric_tensors['loss']
@@ -87,7 +87,7 @@ def train_and_save(dataset, batch_size=32, num_epochs=30):
         for batch in td.group_by_batches(shuffled, batch_size):
             train_feed_dict[compiler.loom_input_tensor] = batch
             _, batch_loss = sess.run([train, loss], train_feed_dict)
-            last_loss = sum(batch_loss)
+            last_loss = np.mean(batch_loss)
             ex_processed += len(batch_loss)
             print('Epoch {0}/{1}: '
                   '{2}/{3} example(s) processed, loss {4:.3f}.'

@@ -63,7 +63,8 @@ def get_model(max_ag_len, max_cdr_len):
                                         padding='same')(input_ag_m)
     input_ag_m2 = Masking()(input_ag_conv) # Probably unnecessary, investigate
 
-    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE, recurrent_dropout=0.1),
+    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE, dropout=0.1,
+                                recurrent_dropout=0.1),
                            merge_mode='concat')(input_ag_m2)
 
     input_ab = Input(shape=(max_cdr_len, NUM_FEATS))

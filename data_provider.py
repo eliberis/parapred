@@ -84,9 +84,17 @@ def open_dataset():
     return dataset
 
 
+def neighbour_list_to_matrix(neigh_list):
+    # Convert a list of tuples into a 2-element list of lists
+    l = [list(t) for t in zip(*neigh_list)]
+    weights = 1 / np.array(l[0])
+    residues = residue_seq_to_one(l[1])
+    # Multiply each column by a vector element-wise
+    return seq_to_feat_matrix(residues) #  * weights[:, np.newaxis]
+
+
 def process_chains(ag_chain, ab_h_chain, ab_l_chain,
                    max_cdr_len, max_ag_len):
-
     # Extract CDRs
     cdrs = {}
     cdrs.update(extract_cdrs(ab_h_chain, ["H1", "H2", "H3"]))
@@ -101,13 +109,9 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
 
     for cdr_name, cdr_chain in cdrs.items():
         contact[cdr_name] = \
-            [residue_in_contact_with(res, ag_search) for res in cdr_chain]
+            [residue_in_contact_with(res[0][1], ag_search) for res in cdr_chain]
         num_residues += len(contact[cdr_name])
         num_in_contact += sum(contact[cdr_name])
-
-    # Convert Residue entities to amino acid sequences
-    cdrs = {k: residue_seq_to_one(v) for k, v in cdrs.items()}
-    ag = residue_seq_to_one(ag_chain)
 
     # Convert to matrices
     # TODO: could simplify with keras.preprocessing.sequence.pad_sequences
@@ -117,8 +121,9 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
         cdr_chain = cdrs[cdr_name]
 
-        cdr_mat = seq_to_one_hot(cdr_chain)
-        cdr_mat_pad = np.zeros((max_cdr_len, NUM_FEATURES))
+        neigh_feats = [neighbour_list_to_matrix(n) for n in cdr_chain]
+        cdr_mat = np.stack([m.flatten() for m in neigh_feats], axis=0)
+        cdr_mat_pad = np.zeros((max_cdr_len, NEIGHBOURHOOD_FEATURES))
         cdr_mat_pad[:cdr_mat.shape[0], :] = cdr_mat
         cdr_mats.append(cdr_mat_pad)
 
@@ -135,7 +140,8 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     lbls = np.stack(cont_mats)
     masks = np.stack(cdr_masks)
 
-    ag_mat = seq_to_one_hot(ag)
+    ag = residue_seq_to_one(ag_chain)
+    ag_mat = seq_to_feat_matrix(ag)
     ag_mat_pad = np.zeros((max_ag_len, NUM_FEATURES))
     ag_mat_pad[:ag_mat.shape[0], :] = ag_mat
 

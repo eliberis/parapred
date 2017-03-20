@@ -3,7 +3,7 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, \
     Dense, LSTM, Masking, Input, RepeatVector, Dropout, Convolution1D
 from keras.layers.merge import concatenate, add
 import keras.backend as K
-from data_provider import NUM_FEATURES
+from data_provider import NUM_FEATURES, NEIGHBOURHOOD_FEATURES
 
 
 def false_neg(y_true, y_pred):
@@ -31,7 +31,7 @@ class MaskingByLambda(Layer):
 
 # Base masking decision only on the first elements
 def mask(input, mask):
-    return K.any(K.not_equal(input[:, :, :(2*RNN_STATE_SIZE)], 0.0), axis=-1)
+    return K.any(K.not_equal(input[:, :, :128], 0.0), axis=-1)
 
 
 def mask_by_input(tensor):
@@ -67,92 +67,20 @@ def get_model(max_ag_len, max_cdr_len):
     enc_ag = Bidirectional(LSTM(128, dropout=0.15, recurrent_dropout=0.15),
                            merge_mode='concat')(ag_neigh_fts)
 
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
+    input_ab = Input(shape=(max_cdr_len, NEIGHBOURHOOD_FEATURES))
+    input_ab_m = Masking()(input_ab)
 
-    ab_fts = Convolution1D(NUM_FEATURES, 1, activation='elu')(input_ab)
-    ab_neigh_fts = Convolution1D(NUM_FEATURES, 3, padding='same', activation='elu')(ab_fts)
-
-    ab_res_sum = add([input_ab, ab_neigh_fts])
-    ab_seq = Masking()(ab_res_sum)
-
+    # Adding recurrent dropout here is a bad idea
+    # --- sequences are very short
     label_mask = Input(shape=(max_cdr_len,))
 
-    # Adding dropout_U here is a bad idea --- sequences are very short and
-    # all information is essential
-    ab_net_out = Bidirectional(LSTM(128, dropout=0.15, recurrent_dropout=0.15,
-                                    return_sequences=True),
-                               merge_mode='concat')(ab_seq)
+    ab_net_out = Bidirectional(LSTM(128, return_sequences=True),
+                               merge_mode='concat')(input_ab_m)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
     ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])
     ab_ag_repr = MaskingByLambda(mask_by_input(label_mask))(ab_ag_repr)
     ab_ag_repr = Dropout(0.1)(ab_ag_repr)
-
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
-    model = Model(inputs=[input_ag, input_ab, label_mask], outputs=aa_probs)
-    model.compile(loss='binary_crossentropy',
-                  optimizer='adam',
-                  metrics=['binary_accuracy', false_pos, false_neg],
-                  sample_weight_mode="temporal")
-    return model
-
-
-def baseline_model(max_ag_len, max_cdr_len):
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
-    input_ab_m = Masking()(input_ab)
-
-    aa_feats = TimeDistributed(Dense(64, activation='elu'))(input_ab_m)
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(aa_feats)
-    model = Model(inputs=input_ab, outputs=aa_probs)
-    model.compile(loss='binary_crossentropy',
-                  optimizer='adam',
-                  metrics=['binary_accuracy', false_pos, false_neg],
-                  sample_weight_mode="temporal")
-    return model
-
-
-def ab_only_model(max_ag_len, max_cdr_len):
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
-    input_ab_m = Masking()(input_ab)
-
-    label_mask = Input(shape=(max_cdr_len,))
-
-    # Adding dropout_U here is a bad idea --- sequences are very short and
-    # all information is essential
-    ab_net_out = Bidirectional(LSTM(128, return_sequences=True),
-                               merge_mode='concat')(input_ab_m)
-
-    ab_ag_repr = MaskingByLambda(mask_by_input(label_mask))(ab_net_out)
-
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
-    model = Model(inputs=[input_ab, label_mask], outputs=aa_probs)
-    model.compile(loss='binary_crossentropy',
-                  optimizer='adam',
-                  metrics=['binary_accuracy', false_pos, false_neg],
-                  sample_weight_mode="temporal")
-    return model
-
-
-def no_neighbourhood_model(max_ag_len, max_cdr_len):
-    input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
-    input_ag_m = Masking()(input_ag)
-
-    enc_ag = Bidirectional(LSTM(128),
-                           merge_mode='concat')(input_ag_m)
-
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
-    input_ab_m = Masking()(input_ab)
-
-    label_mask = Input(shape=(max_cdr_len,))
-
-    # Adding dropout_U here is a bad idea --- sequences are very short and
-    # all information is essential
-    ab_net_out = Bidirectional(LSTM(128, return_sequences=True),
-                               merge_mode='concat')(input_ab_m)
-
-    enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
-    ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])
-    ab_ag_repr = MaskingByLambda(mask_by_input(label_mask))(ab_ag_repr)
 
     aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
     model = Model(inputs=[input_ag, input_ab, label_mask], outputs=aa_probs)

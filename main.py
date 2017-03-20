@@ -32,8 +32,6 @@ def main():
                         batch_size=32, epochs=15,
                         sample_weight=example_weight)
 
-    model.save_weights("abip-sets.h5")
-
     probs_test = model.predict([ags_test, cdrs_test])
 
     test_seq_lens = np.sum(np.squeeze(mask_test), axis=1)

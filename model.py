@@ -3,7 +3,7 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, \
     Dense, LSTM, Masking, Input, RepeatVector, Dropout, Convolution1D
 from keras.layers.merge import concatenate
 import keras.backend as K
-from data_provider import NUM_FEATURES
+from data_provider import NUM_FEATURES, NEIGHBOURHOOD_FEATURES
 
 RNN_STATE_SIZE = 64
 CONV_FILTERS = 32
@@ -67,12 +67,12 @@ def get_model(max_ag_len, max_cdr_len):
                                 recurrent_dropout=0.1),
                            merge_mode='concat')(input_ag_m2)
 
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
+    input_ab = Input(shape=(max_cdr_len, NEIGHBOURHOOD_FEATURES))
     input_ab_m = Masking()(input_ab)
 
-    # Adding dropout_U here is a bad idea --- sequences are very short and
-    # all information is essential
-    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
+    # Adding recurrent dropout here is a bad idea
+    # --- sequences are very short
+    ab_net_out = Bidirectional(LSTM(2 * RNN_STATE_SIZE, return_sequences=True),
                                merge_mode='concat')(input_ab_m)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)

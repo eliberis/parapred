@@ -57,6 +57,15 @@ def open_dataset():
     return dataset
 
 
+def neighbour_list_to_matrix(neigh_list):
+    # Convert a list of tuples into a 2-element list of lists
+    l = [list(t) for t in zip(*neigh_list)]
+    weights = 1 / np.array(l[0])
+    residues = residue_seq_to_one(l[1])
+    # Multiply each column by a vector element-wise
+    return seq_to_feat_matrix(residues) * weights[:, np.newaxis]
+
+
 def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
                     max_cdr_len, max_ag_len):
     parser = PDBParser()
@@ -75,20 +84,16 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
     contact = {}
     for cdr_name, cdr_chain in cdrs.items():
         contact[cdr_name] = \
-            [residue_in_contact_with_chain(res, ag) for res in cdr_chain]
-
-    # Convert Residue entities to amino acid sequences
-    # (TODO replace with tree building later)
-    cdrs = {k: residue_seq_to_one(v) for k, v in cdrs.items()}
-    ag = residue_seq_to_one(ag)
+            [residue_in_contact_with_chain(res[0][1], ag) for res in cdr_chain]
 
     # Convert to matrices
     cdr_mats = []
     cont_mats = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
         cdr_chain = cdrs[cdr_name]
-        cdr_mat = seq_to_one_hot(cdr_chain)
-        cdr_mat_pad = np.zeros((max_cdr_len, NUM_FEATURES))
+        neigh_feats = [neighbour_list_to_matrix(n) for n in cdr_chain]
+        cdr_mat = np.stack([m.flatten() for m in neigh_feats], axis=0)
+        cdr_mat_pad = np.zeros((max_cdr_len, NEIGHBOURHOOD_FEATURES))
         cdr_mat_pad[:cdr_mat.shape[0], :] = cdr_mat
         cdr_mats.append(cdr_mat_pad)
 
@@ -100,7 +105,8 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
     cdrs = np.stack(cdr_mats)
     lbls = np.stack(cont_mats)
 
-    ag_mat = seq_to_one_hot(ag)
+    ag = residue_seq_to_one(ag)
+    ag_mat = seq_to_feat_matrix(ag)
     ag_mat_pad = np.zeros((max_ag_len, NUM_FEATURES))
     ag_mat_pad[:ag_mat.shape[0], :] = ag_mat
 

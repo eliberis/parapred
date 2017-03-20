@@ -32,7 +32,7 @@ def main():
     example_weight = np.squeeze(lbls_train * 5 + 1)  # 6-to-1 in favour of 1
 
     history = model.fit([ags_train, cdrs_train], lbls_train,
-                        batch_size=32, epochs=30,
+                        batch_size=32, epochs=25,
                         sample_weight=example_weight)
 
     model.save_weights("current.h5")

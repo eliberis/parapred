@@ -3,8 +3,9 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, \
     Dense, LSTM, Masking, Input, RepeatVector, Dropout, Convolution1D
 from keras.layers.merge import concatenate
 import keras.backend as K
+from data_provider import NUM_FEATURES, NEIGHBOURHOOD_FEATURES
 
-NUM_FEATS = 21 + 7 # One-hot + 7 features
+
 RNN_STATE_SIZE = 64
 CONV_FILTERS = 32
 CONV_FILTER_SPAN = 9
@@ -56,7 +57,7 @@ class MaskedConvolution1D(Convolution1D):
 
 
 def get_model(max_ag_len, max_cdr_len):
-    input_ag = Input(shape=(max_ag_len, NUM_FEATS))
+    input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
     input_ag_m = Masking()(input_ag)
 
     input_ag_conv = MaskedConvolution1D(CONV_FILTERS, CONV_FILTER_SPAN,
@@ -67,12 +68,12 @@ def get_model(max_ag_len, max_cdr_len):
                                 recurrent_dropout=0.1),
                            merge_mode='concat')(input_ag_m2)
 
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATS))
+    input_ab = Input(shape=(max_cdr_len, NEIGHBOURHOOD_FEATURES))
     input_ab_m = Masking()(input_ab)
 
-    # Adding dropout_U here is a bad idea --- sequences are very short and
-    # all information is essential
-    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
+    # Adding recurrent dropout here is a bad idea
+    # --- sequences are very short
+    ab_net_out = Bidirectional(LSTM(2 * RNN_STATE_SIZE, return_sequences=True),
                                merge_mode='concat')(input_ab_m)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)

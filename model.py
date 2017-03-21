@@ -3,7 +3,7 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, \
     Dense, LSTM, Masking, Input, RepeatVector, Dropout, Convolution1D
 from keras.layers.merge import concatenate, add
 import keras.backend as K
-from data_provider import NUM_FEATURES, NEIGHBOURHOOD_FEATURES
+from data_provider import NUM_CDR_FEATURES, NUM_AG_FEATURES
 
 
 def false_neg(y_true, y_pred):
@@ -56,18 +56,13 @@ class MaskedConvolution1D(Convolution1D):
 
 
 def get_model(max_ag_len, max_cdr_len):
-    input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
-    ag_fts = Convolution1D(32, 1, activation='elu')(input_ag)
-    ag_seq = Masking()(ag_fts)
+    input_ag = Input(shape=(max_ag_len, NUM_AG_FEATURES))
+    input_ag_m = Masking()(input_ag)
 
-    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_seq)
-    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
-    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
+    enc_ag = Bidirectional(LSTM(128, dropout=0.1, recurrent_dropout=0.1),
+                           merge_mode='concat')(input_ag_m)
 
-    enc_ag = Bidirectional(LSTM(128, dropout=0.15, recurrent_dropout=0.15),
-                           merge_mode='concat')(ag_neigh_fts)
-
-    input_ab = Input(shape=(max_cdr_len, NEIGHBOURHOOD_FEATURES))
+    input_ab = Input(shape=(max_cdr_len, NUM_CDR_FEATURES))
     input_ab_m = Masking()(input_ab)
 
     # Adding recurrent dropout here is a bad idea

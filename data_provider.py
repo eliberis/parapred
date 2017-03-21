@@ -87,7 +87,7 @@ def open_dataset():
 def neighbour_list_to_matrix(neigh_list):
     # Convert a list of tuples into a 2-element list of lists
     l = [list(t) for t in zip(*neigh_list)]
-    weights = 1 / np.array(l[0])
+    # weights = 1 / np.array(l[0])
     residues = residue_seq_to_one(l[1])
     # Multiply each column by a vector element-wise
     return seq_to_feat_matrix(residues) #  * weights[:, np.newaxis]
@@ -114,7 +114,6 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
         num_in_contact += sum(contact[cdr_name])
 
     # Convert to matrices
-    # TODO: could simplify with keras.preprocessing.sequence.pad_sequences
     cdr_mats = []
     cont_mats = []
     cdr_masks = []
@@ -140,9 +139,11 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     lbls = np.stack(cont_mats)
     masks = np.stack(cdr_masks)
 
-    ag = residue_seq_to_one(ag_chain)
-    ag_mat = seq_to_feat_matrix(ag)
-    ag_mat_pad = np.zeros((max_ag_len, NUM_FEATURES))
+    ag_neighs = [neighbour_list_to_matrix(
+                    residue_neighbourhood(r, ag_chain, RESIDUE_NEIGHBOURS))
+                 for r in ag_chain]
+    ag_mat = np.stack([feat.flatten() for feat in ag_neighs])
+    ag_mat_pad = np.zeros((max_ag_len, NUM_AG_FEATURES))
     ag_mat_pad[:ag_mat.shape[0], :] = ag_mat
 
     # Replicate AG chain 6 times

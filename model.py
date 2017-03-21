@@ -3,9 +3,9 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, \
     Dense, LSTM, Masking, Input, RepeatVector, Dropout, Convolution1D
 from keras.layers.merge import concatenate
 import keras.backend as K
-from data_provider import NUM_FEATURES, NEIGHBOURHOOD_FEATURES
+from data_provider import NUM_CDR_FEATURES, NUM_AG_FEATURES
 
-RNN_STATE_SIZE = 64
+RNN_STATE_SIZE = 128
 CONV_FILTERS = 32
 CONV_FILTER_SPAN = 9
 
@@ -56,23 +56,24 @@ class MaskedConvolution1D(Convolution1D):
 
 
 def get_model(max_ag_len, max_cdr_len):
-    input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
+    input_ag = Input(shape=(max_ag_len, NUM_AG_FEATURES))
     input_ag_m = Masking()(input_ag)
 
-    input_ag_conv = MaskedConvolution1D(CONV_FILTERS, CONV_FILTER_SPAN,
-                                        padding='same')(input_ag_m)
-    input_ag_m2 = Masking()(input_ag_conv) # Probably unnecessary, investigate
+    # input_ag_conv = MaskedConvolution1D(CONV_FILTERS, CONV_FILTER_SPAN,
+    #                                     padding='same')(input_ag_m)
+    # input_ag_m2 = Masking()(input_ag_conv) # Probably unnecessary, investigate
 
-    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE, dropout=0.1,
+    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE,
+                                dropout=0.1,
                                 recurrent_dropout=0.1),
-                           merge_mode='concat')(input_ag_m2)
+                           merge_mode='concat')(input_ag_m)
 
-    input_ab = Input(shape=(max_cdr_len, NEIGHBOURHOOD_FEATURES))
+    input_ab = Input(shape=(max_cdr_len, NUM_CDR_FEATURES))
     input_ab_m = Masking()(input_ab)
 
     # Adding recurrent dropout here is a bad idea
     # --- sequences are very short
-    ab_net_out = Bidirectional(LSTM(2 * RNN_STATE_SIZE, return_sequences=True),
+    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
                                merge_mode='concat')(input_ab_m)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
@@ -90,7 +91,7 @@ def get_model(max_ag_len, max_cdr_len):
 
 
 def baseline_model(max_cdr_len):
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
+    input_ab = Input(shape=(max_cdr_len, NUM_CDR_FEATURES))
     input_ab_m = Masking()(input_ab)
 
     aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(input_ab_m)
@@ -103,7 +104,7 @@ def baseline_model(max_cdr_len):
 
 
 def ab_only_model(max_cdr_len):
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
+    input_ab = Input(shape=(max_cdr_len, NUM_CDR_FEATURES))
     input_ab_m = Masking()(input_ab)
 
     # Adding dropout_U here is a bad idea --- sequences are very short and

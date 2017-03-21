@@ -14,9 +14,11 @@ chothia_cdr_def = { "L1" : (24, 34), "L2" : (50, 56), "L3" : (89, 97),
 
 aa_s = "CSTPAGNDEQHRKMILVFYWU" # U for unknown
 
-NUM_FEATURES = len(aa_s) + 7 # one-hot + extra features
-RESIDUE_NEIGHBOURS = 4
-NEIGHBOURHOOD_FEATURES = NUM_FEATURES * (RESIDUE_NEIGHBOURS + 1)
+NUM_AA_FEATURES = len(aa_s) + 7 # one-hot + extra features
+RESIDUE_NEIGHBOURS = 6
+NEIGHBOURHOOD_FEATURES = NUM_AA_FEATURES * (RESIDUE_NEIGHBOURS + 1)
+NUM_CDR_FEATURES = NEIGHBOURHOOD_FEATURES
+NUM_AG_FEATURES = NEIGHBOURHOOD_FEATURES
 
 
 # TODO: Could optimise a bit, but not important
@@ -111,7 +113,10 @@ def seq_to_feat_matrix(res_seq_one):
 
 
 def residue_distance(r1, r2):
-    return r1["CA"] - r2["CA"]
+    # TODO: maybe not the best idea to take any atom?
+    r1_atom = r1["CA"] if "CA" in r1 else r1.child_list[0]
+    r2_atom = r2["CA"] if "CA" in r2 else r2.child_list[0]
+    return r1_atom - r2_atom
 
 
 class DistResiduePair(tuple):

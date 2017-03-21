@@ -60,10 +60,10 @@ def open_dataset():
 def neighbour_list_to_matrix(neigh_list):
     # Convert a list of tuples into a 2-element list of lists
     l = [list(t) for t in zip(*neigh_list)]
-    weights = 1 / np.array(l[0])
+    # weights = 1 / np.array(l[0])
     residues = residue_seq_to_one(l[1])
     # Multiply each column by a vector element-wise
-    return seq_to_feat_matrix(residues) * weights[:, np.newaxis]
+    return seq_to_feat_matrix(residues)# * weights[:, np.newaxis]
 
 
 def cdr_id_to_vector(cdr_name):
@@ -93,6 +93,7 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
             [residue_in_contact_with_chain(res[0][1], ag) for res in cdr_chain]
 
     # Convert to matrices
+    # TODO: combine code for converting AG and CDRs
     cdr_mats = []
     cont_mats = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
@@ -116,8 +117,10 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
     cdrs = np.stack(cdr_mats)
     lbls = np.stack(cont_mats)
 
-    ag = residue_seq_to_one(ag)
-    ag_mat = seq_to_feat_matrix(ag)
+    ag_neighs = [neighbour_list_to_matrix(
+                    residue_neighbourhood(r, ag, RESIDUE_NEIGHBOURS))
+                 for r in ag.get_residues()]
+    ag_mat = np.stack([feat.flatten() for feat in ag_neighs])
     ag_mat_pad = np.zeros((max_ag_len, NUM_AG_FEATURES))
     ag_mat_pad[:ag_mat.shape[0], :] = ag_mat
 

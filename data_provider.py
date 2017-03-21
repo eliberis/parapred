@@ -66,6 +66,12 @@ def neighbour_list_to_matrix(neigh_list):
     return seq_to_feat_matrix(residues) * weights[:, np.newaxis]
 
 
+def cdr_id_to_vector(cdr_name):
+    h_or_l = {'H': [0, 1], 'L': [1, 0]}
+    id = {'1': [0, 0, 1], '2': [0, 1, 0], '3': [1, 0, 0]}
+    return np.array(h_or_l[cdr_name[0]] + id[cdr_name[1]])
+
+
 def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
                     max_cdr_len, max_ag_len):
     parser = PDBParser()
@@ -91,9 +97,14 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
     cont_mats = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
         cdr_chain = cdrs[cdr_name]
+        cdr_id_vec = cdr_id_to_vector(cdr_name)
+
         neigh_feats = [neighbour_list_to_matrix(n) for n in cdr_chain]
-        cdr_mat = np.stack([m.flatten() for m in neigh_feats], axis=0)
-        cdr_mat_pad = np.zeros((max_cdr_len, NEIGHBOURHOOD_FEATURES))
+        feat_vecs = [np.concatenate([m.flatten(), cdr_id_vec])
+                     for m in neigh_feats]
+        cdr_mat = np.stack(feat_vecs)
+
+        cdr_mat_pad = np.zeros((max_cdr_len, NUM_CDR_FEATURES))
         cdr_mat_pad[:cdr_mat.shape[0], :] = cdr_mat
         cdr_mats.append(cdr_mat_pad)
 
@@ -107,7 +118,7 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
 
     ag = residue_seq_to_one(ag)
     ag_mat = seq_to_feat_matrix(ag)
-    ag_mat_pad = np.zeros((max_ag_len, NUM_FEATURES))
+    ag_mat_pad = np.zeros((max_ag_len, NUM_AG_FEATURES))
     ag_mat_pad[:ag_mat.shape[0], :] = ag_mat
 
     # Replicate AG chain 6 times

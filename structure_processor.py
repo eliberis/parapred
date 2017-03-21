@@ -13,10 +13,11 @@ chothia_cdr_def = { "L1" : (24, 34), "L2" : (50, 56), "L3" : (89, 97),
 
 aa_s = "CSTPAGNDEQHRKMILVFYWU" # U for unknown
 
-NUM_FEATURES = len(aa_s) + 7 # one-hot + extra features
+NUM_AA_FEATURES = len(aa_s) + 7 # one-hot + extra features
 RESIDUE_NEIGHBOURS = 4
-NEIGHBOURHOOD_FEATURES = NUM_FEATURES * (RESIDUE_NEIGHBOURS + 1)
-
+NEIGHBOURHOOD_FEATURES = NUM_AA_FEATURES * (RESIDUE_NEIGHBOURS + 1)
+NUM_CDR_FEATURES = NEIGHBOURHOOD_FEATURES + 5  # + CDR identifier
+NUM_AG_FEATURES = NUM_AA_FEATURES
 
 # TODO: Could optimise a bit, but not important
 def extract_cdrs(chain, cdr_names):

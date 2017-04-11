@@ -1,41 +1,49 @@
-from data_provider import open_dataset
+from data_provider import open_dataset, train_test_split, squash_entries_per_loop
 from model import get_model
 from plotting import *
 import numpy as np
 
 def main():
-    ags, cdrs, lbls, params = open_dataset()
+    entries, params = open_dataset()
 
-    print("Ags:", ags.shape)
-    print("CDRs:", cdrs.shape)
-    print("Labels:", lbls.shape)
-
+    num_entries = len(entries)
     max_ag_len = params["max_ag_len"]
     max_cdr_len = params["max_cdr_len"]
 
+    print("Number of samples:", num_entries)
     print("Max AG length:", max_ag_len)
     print("Max CDR length:", max_cdr_len)
 
-    model = get_model(params["max_ag_len"], params["max_cdr_len"])
-    print(model.summary())
+    models = {}
+    train_set, test_set = train_test_split(entries, test_size=30, seed=0)
 
-    np.random.seed(seed=0)  # TODO replace with stratified split
-    test_size = round(len(cdrs) * 0.20)
-    indices = np.random.permutation(len(cdrs))
+    sq_train_set = squash_entries_per_loop(train_set)
+    sq_test_set = squash_entries_per_loop(test_set)
 
-    ags_train = ags[indices[:-test_size]]
-    cdrs_train = cdrs[indices[:-test_size]]
-    lbls_train = lbls[indices[:-test_size]]
-    ags_test = ags[indices[-test_size:]]
-    cdrs_test = cdrs[indices[-test_size:]]
-    lbls_test = lbls[indices[-test_size:]]
-    example_weight = np.squeeze(lbls_train * 5 + 1)  # 6-to-1 in favour of 1
+    for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
+        print("Training a model for {} CDR:".format(cdr_name))
 
-    history = model.fit([ags_train, cdrs_train], lbls_train,
-                        batch_size=32, epochs=30,
-                        sample_weight=example_weight)
+        model = get_model(params["max_ag_len"], params["max_cdr_len"])
+        ags_train, cdrs_train, lbls_train = sq_train_set[cdr_name]
 
-    model.save_weights("current.h5")
+        example_weight = np.squeeze(lbls_train * 5 + 1)  # 6-to-1 in favour of 1
+        # model.fit([ags_train, cdrs_train], lbls_train,
+        #            batch_size=32, epochs=30,
+        #            sample_weight=example_weight)
+        model.load_weights(cdr_name + "_weights.h5")
+        models[cdr_name] = model
+
+    overall_lbls = []
+    overall_preds = []
+    for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
+        ags_test, cdrs_test, lbls_test = sq_test_set[cdr_name]
+        test_preds = models[cdr_name].predict([ags_test, cdrs_test])
+        overall_lbls.append(lbls_test)
+        overall_preds.append(test_preds)
+
+    plot_prec_rec_curve(np.concatenate(overall_lbls),
+                        np.concatenate(overall_preds),
+                        output_filename="overall.png")
 
     # Only use when examples aren't permuted
     # for i, cdr_name in enumerate(["H1", "H2", "H3", "L1", "L2", "L3"]):

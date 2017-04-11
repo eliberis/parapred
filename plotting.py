@@ -25,7 +25,7 @@ def plot_accuracies(history,
 
 def plot_prec_rec_curve(model, ags_test, examples_test, labels_test,
                         output_filename="proc.png"):
-    plt.interactive(False)
+    plt.figure()
 
     abip_rec = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.92])
     abip_pre = \
@@ -48,4 +48,5 @@ def plot_prec_rec_curve(model, ags_test, examples_test, labels_test,
     plt.xlabel("Recall")
     plt.xticks(np.linspace(0.0, 1, 11))
 
+    plt.title(output_filename)
     plt.savefig(output_filename)

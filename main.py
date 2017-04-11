@@ -36,7 +36,14 @@ def main():
                         sample_weight=example_weight)
 
     model.save_weights("current.h5")
-    plot_prec_rec_curve(model, ags_test, cdrs_test, lbls_test)
+
+    # Only use when examples aren't permuted
+    # for i, cdr_name in enumerate(["H1", "H2", "H3", "L1", "L2", "L3"]):
+    #     curr_ags = ags_test[i::6]
+    #     curr_cdrs = cdrs_test[i::6]
+    #     curr_lbls = lbls_test[i::6]
+    #     plot_prec_rec_curve(model, curr_ags, curr_cdrs, curr_lbls,
+    #                         output_filename=(cdr_name + ".png"))
 
 if __name__ == "__main__":
     main()

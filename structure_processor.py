@@ -104,7 +104,7 @@ def seq_to_one_hot(res_seq_one):
 
 
 def atom_in_contact_with_chain(a, c):
-    for c_res in c.get_unpacked_list():
+    for c_res in c:
         for c_a in c_res.get_unpacked_list():
             if a - c_a < CONTACT_DISTANCE:
                 return True

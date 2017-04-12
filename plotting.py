@@ -37,10 +37,6 @@ def plot_prec_rec_curve(labels_test, probs_test, plot_name="",
                         output_filename="proc.pdf"):
     plt.figure(figsize=(4.5, 3.5))
 
-    abip_rec = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.92])
-    abip_pre = \
-        np.array([0.77, 0.74, 0.66, 0.61, 0.56, 0.51, 0.50, 0.48, 0.44, 0.415])
-
     prec, rec, thresholds = metrics.precision_recall_curve(
         labels_test.flatten(), probs_test.flatten())
 
@@ -52,7 +48,6 @@ def plot_prec_rec_curve(labels_test, probs_test, plot_name="",
     plt.rc('font', family='sans-serif')
 
     plt.plot(rec, prec, c="#0072CF", label="ParaPred")
-    plt.scatter(abip_rec, abip_pre, c='#EA7125', label="Antibody i-Patch")
 
     plt.ylabel("Precision")
     plt.xlabel("Recall")

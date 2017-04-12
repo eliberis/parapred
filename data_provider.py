@@ -34,11 +34,11 @@ def process_dataset(desc_file):
     all_cdrs = []
     all_lbls = []
     all_ags = []
-    all_cdr_masks = []
+    all_ag_masks = []
 
     for ag_chain, ab_h_chain, ab_l_chain, _ in load_chains(desc_file):
         # Sadly, Biopython structures can't be pickled, it seems
-        ag_repl, cdrs, lbls, cdr_mask, (nic, nr) =\
+        ag, cdrs, lbls, ag_mask, (nic, nr) =\
             process_chains(ag_chain, ab_h_chain, ab_l_chain,
                            max_ag_len=DATASET_MAX_AG_LEN,
                            max_cdr_len=DATASET_MAX_CDR_LEN)
@@ -46,17 +46,20 @@ def process_dataset(desc_file):
         num_in_contact += nic
         num_residues += nr
 
+        all_ags.append(ag)
         all_cdrs.append(cdrs)
         all_lbls.append(lbls)
-        all_ags.append(ag_repl)
-        all_cdr_masks.append(cdr_mask)
+        all_ag_masks.append(ag_mask)
 
-    cdrs = np.concatenate(all_cdrs, axis=0)
-    lbls = np.concatenate(all_lbls, axis=0)
-    ags = np.concatenate(all_ags, axis=0)
-    cdr_masks = np.concatenate(all_cdr_masks, axis=0)
+    ags = np.stack(all_ags)
+    cdrs = np.stack(all_cdrs)
+    lbls = np.stack(all_lbls)
+    ag_masks = np.stack(all_ag_masks)
 
-    return ags, cdrs, lbls, cdr_masks, num_residues / num_in_contact
+    print(ags.shape)
+    print(cdrs.shape)
+
+    return ags, cdrs, lbls, ag_masks, num_residues / num_in_contact
 
 
 def compute_entries():
@@ -93,27 +96,20 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     cdrs.update(extract_cdrs(ab_l_chain, ["L1", "L2", "L3"]))
 
     # Compute ground truth -- contact information
-    num_residues = 0
-    num_in_contact = 0
-    contact = {}
+    ab_h_atoms = Selection.unfold_entities(ab_h_chain, 'A')
+    ab_l_atoms = Selection.unfold_entities(ab_l_chain, 'A')
+    ab_search = NeighborSearch(ab_h_atoms + ab_l_atoms)
 
-    ag_search = NeighborSearch(Selection.unfold_entities(ag_chain, 'A'))
-
-    for cdr_name, cdr_chain in cdrs.items():
-        contact[cdr_name] = \
-            [residue_in_contact_with(res, ag_search) for res in cdr_chain]
-        num_residues += len(contact[cdr_name])
-        num_in_contact += sum(contact[cdr_name])
+    contact = [residue_in_contact_with(res, ab_search) for res in ag_chain]
+    num_residues = len(contact)
+    num_in_contact = sum(contact)
 
     # Convert Residue entities to amino acid sequences
     cdrs = {k: residue_seq_to_one(v) for k, v in cdrs.items()}
     ag = residue_seq_to_one(ag_chain)
 
     # Convert to matrices
-    # TODO: could simplify with keras.preprocessing.sequence.pad_sequences
     cdr_mats = []
-    cont_mats = []
-    cdr_masks = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
         cdr_chain = cdrs[cdr_name]
 
@@ -122,25 +118,17 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
         cdr_mat_pad[:cdr_mat.shape[0], :] = cdr_mat
         cdr_mats.append(cdr_mat_pad)
 
-        cont_mat = np.array(contact[cdr_name], dtype=float)
-        cont_mat_pad = np.zeros((max_cdr_len, 1))
-        cont_mat_pad[:cont_mat.shape[0], 0] = cont_mat
-        cont_mats.append(cont_mat_pad)
-
-        cdr_mask = np.zeros((max_cdr_len, 1), dtype=int)
-        cdr_mask[:len(cdr_chain), 0] = 1.0
-        cdr_masks.append(cdr_mask)
-
     cdrs = np.stack(cdr_mats)
-    lbls = np.stack(cont_mats)
-    masks = np.stack(cdr_masks)
 
     ag_mat = seq_to_one_hot(ag)
     ag_mat_pad = np.zeros((max_ag_len, NUM_FEATURES))
     ag_mat_pad[:ag_mat.shape[0], :] = ag_mat
 
-    # Replicate AG chain 6 times
-    ag_repl = np.resize(ag_mat_pad,
-                        (6, ag_mat_pad.shape[0], ag_mat_pad.shape[1]))
+    cont_mat = np.array(contact, dtype=float)
+    cont_mat_pad = np.zeros((max_ag_len, 1))
+    cont_mat_pad[:cont_mat.shape[0], 0] = cont_mat
 
-    return ag_repl, cdrs, lbls, masks, (num_in_contact, num_residues)
+    ag_mask_mat = np.zeros((max_ag_len, 1), dtype=int)
+    ag_mask_mat[:ag_mat.shape[0], 0] = 1
+
+    return ag_mat_pad, cdrs, cont_mat_pad, ag_mask_mat, (num_in_contact, num_residues)

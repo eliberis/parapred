@@ -8,10 +8,6 @@ import numpy as np
 
 def single_run():
     train_set, test_set, params = open_dataset()
-    # kfold_cv_eval(
-    #     lambda: get_model(params["max_ag_len"], params["max_cdr_len"]),
-    #     combine_datasets(train_set, test_set))
-    # return
 
     max_ag_len = params["max_ag_len"]
     max_cdr_len = params["max_cdr_len"]
@@ -26,13 +22,13 @@ def single_run():
 
     ags_train, cdrs_train, lbls_train, mask_train = train_set
     ags_test, cdrs_test, lbls_test, mask_test = test_set
-    example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
+    example_weight = np.squeeze((lbls_train * 5 + 1) * mask_train)
 
     rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
 
     history = model.fit([ags_train, cdrs_train, np.squeeze(mask_train)],
-                        lbls_train,
-                        batch_size=32, epochs=17,
+                        lbls_train, validation_split=0.15,
+                        batch_size=16, epochs=100,
                         sample_weight=example_weight,
                         callbacks=[LearningRateScheduler(rate_schedule)])
 
@@ -52,11 +48,6 @@ def single_run():
     print(confusion_matrix(lbls_flat, pred_flat))
 
     plot_roc_curve(lbls_flat, probs_flat)
-    plot_prec_rec_curve(lbls_flat, probs_flat,
-                        output_filename="abip-sets.pdf")
-
-    # plot_stats(history)
-    # annotate_and_save_test_structures(probs_test)
 
 
 def crossvalidation_eval():
@@ -67,9 +58,10 @@ def crossvalidation_eval():
 
     for i in range(10):
         print("Crossvalidation run", i+1)
-        output_file = "data/seq_eval/run-{}.p".format(i)
-        weights_template = "data/seq_eval/weights/run-" + str(i) + "-fold-{}.h5"
+        output_file = "data/epitope_seq_eval/run-{}.p".format(i)
+        weights_template = "data/epitope_seq_eval/weights/run-" + str(i) + "-fold-{}.h5"
         kfold_cv_eval(model_factory, dataset, output_file, weights_template)
 
+
 if __name__ == "__main__":
-    crossvalidation_eval()
+    single_run()

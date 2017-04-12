@@ -1,5 +1,5 @@
 from keras.engine import Model
-from keras.layers import Layer, Bidirectional, TimeDistributed, \
+from keras.layers import Layer, Bidirectional, TimeDistributed, Lambda, \
     Dense, LSTM, Masking, Input, RepeatVector, Dropout, Convolution1D
 from keras.layers.merge import concatenate
 import keras.backend as K
@@ -61,69 +61,50 @@ class MaskedConvolution1D(Convolution1D):
 
 def get_model(max_ag_len, max_cdr_len):
     input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
+
     ag_fts = Convolution1D(32, 1, activation='elu')(input_ag)
     ag_seq = Masking()(ag_fts)
 
-    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_seq)
-    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
-    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
+    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same',
+                                       activation='elu')(ag_seq)
 
-    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE, dropout=0.1,
-                                recurrent_dropout=0.1),
-                           merge_mode='concat')(ag_neigh_fts)
+    ag_res_fts = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
+                               merge_mode='concat')(ag_neigh_fts)
 
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
 
-    ab_fts = Convolution1D(32, 1, activation='elu')(input_ab)
-    ab_seq = Masking()(ab_fts)
-    ab_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ab_seq)
+    input_ab = Input(shape=(6, max_cdr_len, NUM_FEATURES))
+    # Split input_ab into 6 sub-inputs
+    input_loops = [Lambda(lambda x: x[:, i, :, :],
+                          output_shape=(max_cdr_len, NUM_FEATURES))(input_ab)
+                   for i in range(6)]
 
-    label_mask = Input(shape=(max_cdr_len,))
+    loop_conv = Convolution1D(32, 1, activation='elu')
+    loop_fts = [Dropout(0.1)(loop_conv(loop)) for loop in input_loops]
+    loop_seq = [Masking()(loop) for loop in loop_fts]
 
-    # Adding dropout_U here is a bad idea --- sequences are very short and
-    # all information is essential
-    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
-                               merge_mode='concat')(ab_neigh_fts)
+    loop_neigh_conv = MaskedConvolution1D(32, 3, padding='same', activation='elu')
+    loop_neigh_fts = [loop_neigh_conv(loop) for loop in loop_seq]
 
-    enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
-    ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])
+    # ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_seq)
+    # ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
+    # ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
+
+    loop_lstm = Bidirectional(LSTM(RNN_STATE_SIZE, dropout=0.15,
+                                   recurrent_dropout=0.1),
+                              merge_mode='concat')
+    loop_enc = [loop_lstm(loop) for loop in loop_neigh_fts]
+    all_loop_fts = concatenate(loop_enc)
+
+
+    label_mask = Input(shape=(max_ag_len, ))
+
+    cdrs_rep = RepeatVector(max_ag_len)(all_loop_fts)
+    ab_ag_repr = concatenate([ag_res_fts, cdrs_rep])
     ab_ag_repr = MaskingByLambda(mask_by_input(label_mask))(ab_ag_repr)
     ab_ag_repr = Dropout(0.1)(ab_ag_repr)
 
     aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
     model = Model(inputs=[input_ag, input_ab, label_mask], outputs=aa_probs)
-    model.compile(loss='binary_crossentropy',
-                  optimizer='adam',
-                  metrics=['binary_accuracy', false_pos, false_neg],
-                  sample_weight_mode="temporal")
-    return model
-
-
-def baseline_model(max_cdr_len):
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
-    input_ab_m = Masking()(input_ab)
-
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(input_ab_m)
-    model = Model(inputs=input_ab, outputs=aa_probs)
-    model.compile(loss='binary_crossentropy',
-                  optimizer='adam',
-                  metrics=['binary_accuracy', false_pos, false_neg],
-                  sample_weight_mode="temporal")
-    return model
-
-
-def ab_only_model(max_cdr_len):
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
-    input_ab_m = Masking()(input_ab)
-
-    # Adding dropout_U here is a bad idea --- sequences are very short and
-    # all information is essential
-    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
-                               merge_mode='concat')(input_ab_m)
-
-    ab_ag_repr = Dropout(0.1)(ab_net_out)
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
-    model = Model(inputs=input_ab, outputs=aa_probs)
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',
                   metrics=['binary_accuracy', false_pos, false_neg],

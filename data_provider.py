@@ -15,6 +15,9 @@ def compute_entries():
     max_cdr_len = DATASET_MAX_CDR_LEN
     max_ag_len = DATASET_MAX_AG_LEN
 
+    num_in_contact = 0
+    num_residues = 0
+
     all_cdrs = []
     all_lbls = []
     all_ags = []
@@ -26,10 +29,14 @@ def compute_entries():
         ab_l_chain = entry['Ab Light Chain']
         ag_chain = entry['Ag']
 
-        ag_repl, cdrs, lbls, _ = open_single_pdb(pdb_file, ab_h_chain,
-                                                 ab_l_chain, ag_chain,
-                                                 max_ag_len=max_ag_len,
-                                                 max_cdr_len=max_cdr_len)
+        ag_repl, cdrs, lbls, _, (nic, nr) =\
+            open_single_pdb(pdb_file, ab_h_chain,
+                            ab_l_chain, ag_chain,
+                            max_ag_len=max_ag_len,
+                            max_cdr_len=max_cdr_len)
+
+        num_in_contact += nic
+        num_residues += nr
 
         all_cdrs.append(cdrs)
         all_lbls.append(lbls)
@@ -40,7 +47,8 @@ def compute_entries():
     ags = np.concatenate(all_ags, axis=0)
 
     return (ags, cdrs, lbls,
-            {"max_cdr_len": max_cdr_len, "max_ag_len": max_ag_len})
+            {"max_cdr_len": max_cdr_len, "max_ag_len": max_ag_len,
+             "pos_class_weight": num_residues / num_in_contact})
 
 
 def open_dataset():
@@ -72,10 +80,14 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
     ag = model[ag_chain_id]
 
     # Compute ground truth -- contact information
+    num_residues = 0
+    num_in_contact = 0
     contact = {}
     for cdr_name, cdr_chain in cdrs.items():
         contact[cdr_name] = \
             [residue_in_contact_with_chain(res, ag) for res in cdr_chain]
+        num_residues += len(contact[cdr_name])
+        num_in_contact += sum(contact[cdr_name])
 
     # Convert Residue entities to amino acid sequences
     # (TODO replace with tree building later)
@@ -108,4 +120,4 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
     ag_repl = np.resize(ag_mat_pad,
                         (6, ag_mat_pad.shape[0], ag_mat_pad.shape[1]))
 
-    return ag_repl, cdrs, lbls, structure
+    return ag_repl, cdrs, lbls, structure, (num_in_contact, num_residues)

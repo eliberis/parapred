@@ -12,9 +12,12 @@ def main():
 
     max_ag_len = params["max_ag_len"]
     max_cdr_len = params["max_cdr_len"]
+    pos_class_weight = params["pos_class_weight"]
 
     print("Max AG length:", max_ag_len)
     print("Max CDR length:", max_cdr_len)
+    print("Pos class weight:", pos_class_weight)
+    return
 
     model = get_model(params["max_ag_len"], params["max_cdr_len"])
     print(model.summary())

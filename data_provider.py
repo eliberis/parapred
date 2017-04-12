@@ -29,7 +29,7 @@ def compute_entries():
         ab_l_chain = entry['Ab Light Chain']
         ag_chain = entry['Ag']
 
-        ag_repl, cdrs, lbls, _, (nic, nr) =\
+        cdrs, ag, lbls, _, (nic, nr) =\
             open_single_pdb(pdb_file, ab_h_chain,
                             ab_l_chain, ag_chain,
                             max_ag_len=max_ag_len,
@@ -40,13 +40,13 @@ def compute_entries():
 
         all_cdrs.append(cdrs)
         all_lbls.append(lbls)
-        all_ags.append(ag_repl)
+        all_ags.append(ag)
 
-    cdrs = np.concatenate(all_cdrs, axis=0)
-    lbls = np.concatenate(all_lbls, axis=0)
-    ags = np.concatenate(all_ags, axis=0)
+    cdrs = np.stack(all_cdrs, axis=0)
+    ag = np.stack(all_ags, axis=0)
+    lbls = np.stack(all_lbls, axis=0)
 
-    return (ags, cdrs, lbls,
+    return (cdrs, ag, lbls,
             {"max_cdr_len": max_cdr_len, "max_ag_len": max_ag_len,
              "pos_class_weight": num_residues / num_in_contact})
 
@@ -80,23 +80,16 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
     ag = model[ag_chain_id]
 
     # Compute ground truth -- contact information
-    num_residues = 0
-    num_in_contact = 0
-    contact = {}
-    for cdr_name, cdr_chain in cdrs.items():
-        contact[cdr_name] = \
-            [residue_in_contact_with_chain(res, ag) for res in cdr_chain]
-        num_residues += len(contact[cdr_name])
-        num_in_contact += sum(contact[cdr_name])
+    contact = [residue_in_contact_with_chains(res, cdrs.values()) for res in ag]
+    num_residues = len(contact)
+    num_in_contact = sum(contact)
 
     # Convert Residue entities to amino acid sequences
-    # (TODO replace with tree building later)
     cdrs = {k: residue_seq_to_one(v) for k, v in cdrs.items()}
     ag = residue_seq_to_one(ag)
 
     # Convert to matrices
     cdr_mats = []
-    cont_mats = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
         cdr_chain = cdrs[cdr_name]
         cdr_mat = seq_to_one_hot(cdr_chain)
@@ -104,20 +97,15 @@ def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
         cdr_mat_pad[:cdr_mat.shape[0], :] = cdr_mat
         cdr_mats.append(cdr_mat_pad)
 
-        cont_mat = np.array(contact[cdr_name], dtype=float)
-        cont_mat_pad = np.zeros((max_cdr_len, 1))
-        cont_mat_pad[:cont_mat.shape[0], 0] = cont_mat
-        cont_mats.append(cont_mat_pad)
-
     cdrs = np.stack(cdr_mats)
-    lbls = np.stack(cont_mats)
 
     ag_mat = seq_to_one_hot(ag)
     ag_mat_pad = np.zeros((max_ag_len, NUM_FEATURES))
     ag_mat_pad[:ag_mat.shape[0], :] = ag_mat
 
-    # Replicate AG chain 6 times
-    ag_repl = np.resize(ag_mat_pad,
-                        (6, ag_mat_pad.shape[0], ag_mat_pad.shape[1]))
+    cont_mat = np.array(contact, dtype=float)
+    cont_mat_pad = np.zeros((max_ag_len, 1))
+    cont_mat_pad[:cont_mat.shape[0], 0] = cont_mat
 
-    return ag_repl, cdrs, lbls, structure, (num_in_contact, num_residues)
+    return cdrs, ag_mat_pad, cont_mat_pad, structure, \
+           (num_in_contact, num_residues)

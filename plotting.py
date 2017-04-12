@@ -23,7 +23,7 @@ def plot_accuracies(history,
     plt.savefig(loss_filename)
 
 
-def plot_prec_rec_curve(model, ags_test, examples_test, labels_test,
+def plot_prec_rec_curve(model, cdrs, ags, lbls,
                         output_filename="proc.png"):
     plt.figure()
 
@@ -31,9 +31,9 @@ def plot_prec_rec_curve(model, ags_test, examples_test, labels_test,
     abip_pre = \
         np.array([0.78, 0.74, 0.66, 0.62, 0.56, 0.51, 0.5, 0.48, 0.45, 0.44])
 
-    test_probabilities = model.predict([ags_test, examples_test])
+    test_probabilities = model.predict([cdrs, ags])
     prec, rec, thresholds = metrics.precision_recall_curve(
-        labels_test.flatten(), test_probabilities.flatten())
+        lbls.flatten(), test_probabilities.flatten())
 
     # Maximum interpolation
     for i in range(len(prec)):
@@ -43,7 +43,7 @@ def plot_prec_rec_curve(model, ags_test, examples_test, labels_test,
     plt.plot(abip_rec, abip_pre)
 
     plt.ylabel("Precision")
-    plt.yticks(np.linspace(0.3, 1, 8))
+    plt.yticks(np.linspace(0.0, 1, 11))
 
     plt.xlabel("Recall")
     plt.xticks(np.linspace(0.0, 1, 11))

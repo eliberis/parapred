@@ -103,7 +103,7 @@ def seq_to_one_hot(res_seq_one):
 
 
 def atom_in_contact_with_chain(a, c):
-    for c_res in c.get_unpacked_list():
+    for c_res in c:
         for c_a in c_res.get_unpacked_list():
             if a - c_a < CONTACT_DISTANCE:
                 return True
@@ -111,8 +111,11 @@ def atom_in_contact_with_chain(a, c):
 
 
 def residue_in_contact_with_chain(res, c):
-    return any(map(lambda atom: atom_in_contact_with_chain(atom, c),
-                   res.get_unpacked_list()))
+    return any(atom_in_contact_with_chain(atom, c) for atom in res)
+
+
+def residue_in_contact_with_chains(res, cs):
+    return any(residue_in_contact_with_chain(res, c) for c in cs)
 
 
 def annotate_chain_with_prob(c, cdr_names, probs):

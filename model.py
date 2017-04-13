@@ -63,8 +63,11 @@ def get_model(max_ag_len, max_cdr_len):
                           output_shape=(max_cdr_len, NUM_FEATURES))(input_ab)
                    for i in range(6)]
 
-    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE), merge_mode='concat')
-    enc_ab = concatenate([ab_net_out(inp) for inp in input_loops])
+    conv1d = MaskedConvolution1D(CONV_FILTERS, CONV_FILTER_SPAN, padding='same')
+    masked_loops = [Masking()(inp) for inp in input_loops]
+
+    ab_net = Bidirectional(LSTM(RNN_STATE_SIZE), merge_mode='concat')
+    enc_ab = concatenate([ab_net(conv1d(inp)) for inp in masked_loops])
 
     input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
     input_ag_m = Masking()(input_ag)

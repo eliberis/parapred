@@ -4,8 +4,11 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, Lambda, \
 from keras.layers.merge import concatenate
 import keras.backend as K
 from data_provider import NUM_FEATURES
+from data_provider import NUM_CDR_FEATURES, NUM_AG_FEATURES
 
 RNN_STATE_SIZE = 64
+
+RNN_STATE_SIZE = 128
 CONV_FILTERS = 32
 CONV_FILTER_SPAN = 9
 
@@ -56,6 +59,7 @@ class MaskedConvolution1D(Convolution1D):
 
 
 def get_model(max_ag_len, max_cdr_len):
+    input_ag = Input(shape=(max_ag_len, NUM_AG_FEATURES))
     input_ab = Input(shape=(6, max_cdr_len, NUM_FEATURES))
 
     # Split input_ab into 6 sub-inputs
@@ -72,14 +76,36 @@ def get_model(max_ag_len, max_cdr_len):
     input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
     input_ag_m = Masking()(input_ag)
 
+    # input_ag_conv = MaskedConvolution1D(CONV_FILTERS, CONV_FILTER_SPAN,
+    #                                     padding='same')(input_ag_m)
+    # input_ag_m2 = Masking()(input_ag_conv) # Probably unnecessary, investigate
     ag_repr = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
                             merge_mode='concat')(input_ag_m)
 
+    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE,
+                                dropout=0.1,
+                                recurrent_dropout=0.1),
+                           merge_mode='concat')(input_ag_m)
     enc_ab_rep = RepeatVector(max_ag_len)(enc_ab)
     ag_ab_repr = concatenate([ag_repr, enc_ab_rep])
     ag_ab_repr = MaskingByLambda(mask)(ag_ab_repr)
     ag_ab_repr = Dropout(0.1)(ag_ab_repr)
 
+    input_ab = Input(shape=(max_cdr_len, NUM_CDR_FEATURES))
+    input_ab_m = Masking()(input_ab)
+
+    # Adding recurrent dropout here is a bad idea
+    # --- sequences are very short
+    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
+                               merge_mode='concat')(input_ab_m)
+
+    enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
+    ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])
+    ab_ag_repr = MaskingByLambda(mask)(ab_ag_repr)
+    ab_ag_repr = Dropout(0.1)(ab_ag_repr)
+
+    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
+    model = Model(inputs=[input_ag, input_ab], outputs=aa_probs)
     aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ag_ab_repr)
     model = Model(inputs=[input_ab, input_ag], outputs=aa_probs)
     model.compile(loss='binary_crossentropy',

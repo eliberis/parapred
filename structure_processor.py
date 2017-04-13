@@ -1,6 +1,7 @@
 from Bio.PDB import *
 from Bio.PDB.Model import Model
 from keras.utils.np_utils import to_categorical
+from heapq import *
 import numpy as np
 
 # Config constants
@@ -12,8 +13,11 @@ chothia_cdr_def = { "L1" : (24, 34), "L2" : (50, 56), "L3" : (89, 97),
 
 aa_s = "CSTPAGNDEQHRKMILVFYWU" # U for unknown
 
-NUM_FEATURES = len(aa_s) + 7 # one-hot + extra features
-
+NUM_AA_FEATURES = len(aa_s) + 7 # one-hot + extra features
+RESIDUE_NEIGHBOURS = 6
+NEIGHBOURHOOD_FEATURES = NUM_AA_FEATURES * (RESIDUE_NEIGHBOURS + 1)
+NUM_CDR_FEATURES = NEIGHBOURHOOD_FEATURES + 5  # + CDR identifier
+NUM_AG_FEATURES = NEIGHBOURHOOD_FEATURES
 
 # TODO: Could optimise a bit, but not important
 def extract_cdrs(chain, cdr_names):
@@ -25,14 +29,18 @@ def extract_cdrs(chain, cdr_names):
             cdr_range = range(-NUM_EXTRA_RESIDUES + cdr_low, cdr_hi +
                               NUM_EXTRA_RESIDUES + 1)
             if res.id[1] in cdr_range:
-                cdrs[cdr_name].append(res)
+                n_hood = residue_neighbourhood(res, chain, RESIDUE_NEIGHBOURS)
+                cdrs[cdr_name].append(n_hood)
     return cdrs
 
 
+def residue_to_one(r):
+    return Polypeptide.three_to_one(r.resname) \
+           if r.resname in Polypeptide.standard_aa_names else 'U'
+
+
 def residue_seq_to_one(seq):
-    three_to_one = lambda r: Polypeptide.three_to_one(r.resname)\
-        if r.resname in Polypeptide.standard_aa_names else 'U'
-    return list(map(three_to_one, seq))
+    return list(map(residue_to_one, seq))
 
 
 def one_to_number(res_str):
@@ -95,11 +103,46 @@ def aa_features():
     return np.array(prop1)
 
 
-def seq_to_one_hot(res_seq_one):
+def seq_to_feat_matrix(res_seq_one):
     ints = one_to_number(res_seq_one)
     feats = aa_features()[ints]
     onehot = to_categorical(ints, num_classes=len(aa_s))
     return np.concatenate((onehot, feats), axis=1)
+
+
+def residue_distance(r1, r2):
+    # TODO: maybe not the best idea to take any atom?
+    r1_atom = r1["CA"] if "CA" in r1 else r1.child_list[0]
+    r2_atom = r2["CA"] if "CA" in r2 else r2.child_list[0]
+    return r1_atom - r2_atom
+
+
+class DistResiduePair(tuple):
+    def __cmp__(self, other):
+        return self[0] > other[0]
+
+    def __lt__(self, other):
+        return self.__cmp__(other)
+
+
+def residue_neighbourhood(origin_res, chain, num_neighbours):
+    neighbours = []
+    for r in chain.get_residues():
+        if r == origin_res: continue
+        if "CA" not in r: continue  # Skip HOH and such
+
+        r_pair = DistResiduePair((residue_distance(origin_res, r), r))
+        if len(neighbours) == num_neighbours:
+            if neighbours[0] < r_pair:  # == r_pair has lower distance
+                heapreplace(neighbours, r_pair)
+        else:
+            heappush(neighbours, r_pair)
+
+    result = []
+    while len(neighbours) > 0:
+        result.append(heappop(neighbours))
+    result.append((1.0, origin_res))
+    return result[::-1]
 
 
 def atom_in_contact_with_chain(a, c):

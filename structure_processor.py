@@ -16,7 +16,7 @@ aa_s = "CSTPAGNDEQHRKMILVFYWU" # U for unknown
 NUM_AA_FEATURES = len(aa_s) + 7 # one-hot + extra features
 RESIDUE_NEIGHBOURS = 6
 NEIGHBOURHOOD_FEATURES = NUM_AA_FEATURES * (RESIDUE_NEIGHBOURS + 1)
-NUM_CDR_FEATURES = NEIGHBOURHOOD_FEATURES + 5  # + CDR identifier
+NUM_CDR_FEATURES = NUM_AA_FEATURES
 NUM_AG_FEATURES = NEIGHBOURHOOD_FEATURES
 
 # TODO: Could optimise a bit, but not important
@@ -29,8 +29,7 @@ def extract_cdrs(chain, cdr_names):
             cdr_range = range(-NUM_EXTRA_RESIDUES + cdr_low, cdr_hi +
                               NUM_EXTRA_RESIDUES + 1)
             if res.id[1] in cdr_range:
-                n_hood = residue_neighbourhood(res, chain, RESIDUE_NEIGHBOURS)
-                cdrs[cdr_name].append(n_hood)
+                cdrs[cdr_name].append(res)
     return cdrs
 
 

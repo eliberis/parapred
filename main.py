@@ -31,15 +31,14 @@ def main():
     ags_test = ag[indices[-test_size:]]
     cdrs_test = cdrs[indices[-test_size:]]
     lbls_test = lbls[indices[-test_size:]]
-    example_weight = np.squeeze(lbls_train * 5 + 1)  # 6-to-1 in favour of 1
+    example_weight = np.squeeze(lbls_train * 11 + 1)  # 6-to-1 in favour of 1
 
     history = model.fit([cdrs_train, ags_train], lbls_train,
                         batch_size=32, epochs=35,
                         sample_weight=example_weight)
-    model.save_weights("epitope.h5")
+    model.save_weights("epitope-structure.h5")
 
-    model.save_weights("current.h5")
-    plot_prec_rec_curve(model, ags_test, cdrs_test, lbls_test)
+    plot_prec_rec_curve(model, cdrs_test, ags_test, lbls_test)
 
 if __name__ == "__main__":
     main()

@@ -157,3 +157,21 @@ def save_structure(structure, file_name):
     io = PDBIO()
     io.set_structure(structure)
     io.save(file_name)
+
+
+def get_structure_from_pdb(pdb_file):
+    parser = PDBParser()
+    return parser.get_structure("", pdb_file)
+
+
+def output_patchdock_file(structure, filename="patchdock.txt", cutoff=50.00):
+    model = structure[0]
+
+    with open(filename, "w") as f:
+        for chain in model.get_chains():
+            for res in chain:
+                if any(a.get_bfactor() > cutoff for a in res):
+                    chain_id = chain.id if chain.id is not None else ''
+                    res_num = str(res.id[1]) + \
+                                (res.id[2] if res.id[2] != ' ' else '')
+                    f.write(res_num + ' ' + chain_id + '\n')

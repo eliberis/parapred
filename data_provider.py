@@ -65,14 +65,12 @@ def open_dataset():
     return dataset
 
 
-def open_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
+def open_single_pdb(pdb_name, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
                     max_cdr_len, max_ag_len):
-    parser = PDBParser()
-    structure = parser.get_structure("", PDBS.format(pdb_file))
-
-    # Extract CDRs and the antigen chain
+    structure = get_structure_from_pdb(PDBS.format(pdb_name))
     model = structure[0]
 
+    # Extract CDRs and the antigen chain
     cdrs = {}
     cdrs.update(extract_cdrs(model[ab_h_chain_id], ["H1", "H2", "H3"]))
     cdrs.update(extract_cdrs(model[ab_l_chain_id], ["L1", "L2", "L3"]))

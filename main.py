@@ -4,16 +4,21 @@ from model import get_model
 from plotting import *
 import numpy as np
 
+import patchdock_tools
+
 def main():
-    structure = get_structure_from_pdb("1ahw_parapred.pdb")
-    output_patchdock_file(structure, filename="patchdock_receptor_parapred.txt")
+    structure = get_structure_from_pdb("data/pdbs/1ahw.pdb")
+    antigen_chain = structure[0]['F']
+    patchdock_tools.process_transformations("parapred-transforms.txt", antigen_chain)
 
-    structure = get_structure_from_pdb("1ahw_truth.pdb")
-    output_patchdock_file(structure, filename="patchdock_receptor_truth.txt")
-
-    structure = get_structure_from_pdb("1ahw_truth.pdb")
-    output_patchdock_file(structure, filename="patchdock_receptor_cdrs.txt",
-                          cutoff=0)
+    # output_patchdock_file(structure, filename="patchdock_receptor_parapred.txt")
+    #
+    # structure = get_structure_from_pdb("1ahw_truth.pdb")
+    # output_patchdock_file(structure, filename="patchdock_receptor_truth.txt")
+    #
+    # structure = get_structure_from_pdb("1ahw_truth.pdb")
+    # output_patchdock_file(structure, filename="patchdock_receptor_cdrs.txt",
+    #                       cutoff=0)
     return
 
     ags, cdrs, lbls, params = open_dataset()

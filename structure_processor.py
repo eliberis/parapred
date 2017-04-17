@@ -1,5 +1,6 @@
 from Bio.PDB import *
 from Bio.PDB.Model import Model
+from Bio.PDB.Structure import Structure
 from keras.utils.np_utils import to_categorical
 import numpy as np
 
@@ -137,20 +138,20 @@ def annotate_chain_with_prob(c, cdr_names, probs):
     return c
 
 
-def annotate_structure_with_prob(structure, ab_h_chain_id, ab_l_chain_id,
-                                 probs):
-    model = structure[0]  # Reasonably assuming only one model
-    ab_h_chain = annotate_chain_with_prob(model[ab_h_chain_id],
+def produce_annotated_ab_structure(ab_h_chain, ab_l_chain, probs):
+    ab_h_chain = annotate_chain_with_prob(ab_h_chain,
                                           ["H1", "H2", "H3"], probs[0:3, :])
-    ab_l_chain = annotate_chain_with_prob(model[ab_l_chain_id],
+    ab_l_chain = annotate_chain_with_prob(ab_l_chain,
                                           ["L1", "L2", "L3"], probs[3:6, :])
 
-    # Only keep specified chains of the AB
-    new_model = Model(model.id)
+    # Create a structure with annotated AB chains
+    new_model = Model(0)
     new_model.add(ab_h_chain)
     new_model.add(ab_l_chain)
-    del structure[0]
+
+    structure = Structure(0)
     structure.add(new_model)
+    return structure
 
 
 def save_structure(structure, file_name):
@@ -159,10 +160,15 @@ def save_structure(structure, file_name):
     io.save(file_name)
 
 
+def save_chain(chain, file_name):
+    model = Model(0)
+    model.add(chain)
+    struct = Structure(0)
+    struct.add(model)
+
+    save_structure(struct, file_name)
+
+
 def get_structure_from_pdb(pdb_file):
     parser = PDBParser()
     return parser.get_structure("", pdb_file)
-
-
-def annotate_test_structures(structs, model):
-    pass

@@ -11,28 +11,36 @@ DATASET_MAX_AG_LEN = 1269
 DATASET_PICKLE = "data.p"
 
 
-def process_dataset(dataset_desc_filename):
+def load_chains(dataset_desc_filename):
     df = pd.read_csv(dataset_desc_filename)
-    max_cdr_len = DATASET_MAX_CDR_LEN
-    max_ag_len = DATASET_MAX_AG_LEN
+    for _, entry in df.iterrows():
+        print("Processing PDB: ", entry['PDB'])
 
+        pdb_name = entry['PDB']
+        ab_h_chain = entry['Ab Heavy Chain']
+        ab_l_chain = entry['Ab Light Chain']
+        ag_chain = entry['Ag']
+
+        structure = get_structure_from_pdb(PDBS.format(pdb_name))
+        model = structure[0] # Structure only has one model
+
+        yield model[ag_chain], model[ab_h_chain], model[ab_l_chain], pdb_name
+
+
+def process_dataset(desc_file):
     num_in_contact = 0
     num_residues = 0
 
     all_cdrs = []
     all_lbls = []
     all_ags = []
-    for _, entry in df.iterrows():
-        print("Processing PDB: ", entry['PDB'])
 
-        pdb_file = entry['PDB']
-        ab_h_chain = entry['Ab Heavy Chain']
-        ab_l_chain = entry['Ab Light Chain']
-        ag_chain = entry['Ag']
-
-        ag_repl, cdrs, lbls, _, (nic, nr) =\
-            process_pdb(pdb_file, ab_h_chain, ab_l_chain, ag_chain,
-                        max_ag_len=max_ag_len, max_cdr_len=max_cdr_len)
+    for ag_chain, ab_h_chain, ab_l_chain, _ in load_chains(desc_file):
+        # Sadly, Biopython structures can't be pickled, it seems
+        ag_repl, cdrs, lbls, (nic, nr) =\
+            process_chains(ag_chain, ab_h_chain, ab_l_chain,
+                           max_ag_len=DATASET_MAX_AG_LEN,
+                           max_cdr_len=DATASET_MAX_CDR_LEN)
 
         num_in_contact += nic
         num_residues += nr
@@ -56,7 +64,7 @@ def compute_entries():
         "max_cdr_len": DATASET_MAX_CDR_LEN,
         "pos_class_weight": train_set[3]
     }
-    return train_set[0:3], test_set[0:3], param_dict # Hide class weight
+    return train_set[0:3], test_set[0:3], param_dict  # Hide class weight
 
 
 def open_dataset():
@@ -73,24 +81,20 @@ def open_dataset():
     return dataset
 
 
-def process_pdb(pdb_name, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
-                max_cdr_len, max_ag_len):
-    structure = get_structure_from_pdb(PDBS.format(pdb_name))
-    model = structure[0] # Only one model in the structure
+def process_chains(ag_chain, ab_h_chain, ab_l_chain,
+                   max_cdr_len, max_ag_len):
 
-    # Extract CDRs and the antigen chain
+    # Extract CDRs
     cdrs = {}
-    cdrs.update(extract_cdrs(model[ab_h_chain_id], ["H1", "H2", "H3"]))
-    cdrs.update(extract_cdrs(model[ab_l_chain_id], ["L1", "L2", "L3"]))
-
-    ag = model[ag_chain_id]
+    cdrs.update(extract_cdrs(ab_h_chain, ["H1", "H2", "H3"]))
+    cdrs.update(extract_cdrs(ab_l_chain, ["L1", "L2", "L3"]))
 
     # Compute ground truth -- contact information
     num_residues = 0
     num_in_contact = 0
     contact = {}
 
-    ag_search = NeighborSearch(Selection.unfold_entities(ag, 'A'))
+    ag_search = NeighborSearch(Selection.unfold_entities(ag_chain, 'A'))
 
     for cdr_name, cdr_chain in cdrs.items():
         contact[cdr_name] = \
@@ -100,7 +104,7 @@ def process_pdb(pdb_name, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
 
     # Convert Residue entities to amino acid sequences
     cdrs = {k: residue_seq_to_one(v) for k, v in cdrs.items()}
-    ag = residue_seq_to_one(ag)
+    ag = residue_seq_to_one(ag_chain)
 
     # Convert to matrices
     cdr_mats = []
@@ -128,4 +132,4 @@ def process_pdb(pdb_name, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
     ag_repl = np.resize(ag_mat_pad,
                         (6, ag_mat_pad.shape[0], ag_mat_pad.shape[1]))
 
-    return ag_repl, cdrs, lbls, structure, (num_in_contact, num_residues)
+    return ag_repl, cdrs, lbls, (num_in_contact, num_residues)

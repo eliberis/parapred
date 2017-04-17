@@ -1,5 +1,6 @@
 from data_provider import *
 from structure_processor import *
+from evaluation import *
 from model import get_model
 from plotting import *
 import numpy as np
@@ -22,14 +23,16 @@ def main():
     ags_test, cdrs_test, lbls_test = test_set
     example_weight = np.squeeze(lbls_train * 5 + 1)  # 6-to-1 in favour of 1
 
-    history = model.fit([ags_train, cdrs_train], lbls_train,
-                        batch_size=32, epochs=30,
-                        sample_weight=example_weight)
+    # history = model.fit([ags_train, cdrs_train], lbls_train,
+    #                     batch_size=32, epochs=30,
+    #                     sample_weight=example_weight)
 
-    model.save_weights("abip-sets.h5")
+    model.load_weights("abip-sets.h5")
 
-    plot_prec_rec_curve(model, ags_test, cdrs_test, lbls_test,
-                        output_filename="abip-sets.png")
+    probs_test = model.predict([ags_test, cdrs_test])
+    plot_prec_rec_curve(lbls_test, probs_test, output_filename="abip-sets.png")
+    annotate_and_save_test_structures(probs_test)
+
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,5 @@
 appdirs==1.4.1
-biopython==1.68
+biopython==1.69
 cycler==0.10.0
 h5py==2.6.0
 Keras==2.0.1

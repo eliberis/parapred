@@ -1,11 +1,12 @@
 from data_provider import load_chains, TEST_DATASET_DESC_FILE
 from structure_processor import save_chain, save_structure, \
-    produce_annotated_ab_structure
-from patchdock_tools import output_patchdock_file
+    produce_annotated_ab_structure, extended_epitope
+from patchdock_tools import output_patchdock_ab_constraint, output_patchdock_ag_constraint
 
 AB_STRUCT_SAVE_PATH = "data/annotated/{0}_AB.pdb"
 AG_STRUCT_SAVE_PATH = "data/annotated/{0}_AG.pdb"
-PATCHDOCK_SAVE_PATH = "data/annotated/{0}_patchdock.txt"
+AB_PATCHDOCK_SAVE_PATH = "data/annotated/{0}_ab_patchdock.txt"
+AG_PATCHDOCK_SAVE_PATH = "data/annotated/{0}_ag_patchdock.txt"
 
 
 def annotate_and_save_test_structures(probs):
@@ -16,5 +17,10 @@ def annotate_and_save_test_structures(probs):
         save_structure(ab_struct, AB_STRUCT_SAVE_PATH.format(pdb_name))
 
         save_chain(ag_chain, AG_STRUCT_SAVE_PATH.format(pdb_name))
-        output_patchdock_file(ab_struct,
-                              filename=PATCHDOCK_SAVE_PATH.format(pdb_name))
+
+        abpd_fname = AB_PATCHDOCK_SAVE_PATH.format(pdb_name)
+        output_patchdock_ab_constraint(ab_struct, filename=abpd_fname)
+
+        agpd_fname = AG_PATCHDOCK_SAVE_PATH.format(pdb_name)
+        ext_epi = extended_epitope(ag_chain, ab_h_chain, ab_l_chain)
+        output_patchdock_ag_constraint(ext_epi, ag_chain.id, filename=agpd_fname)

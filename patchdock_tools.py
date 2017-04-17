@@ -17,18 +17,28 @@ def param_transform(ang_x, ang_y, ang_z, t_x, t_y, t_z):
     transl = np.array([t_x, t_y, t_z])
     return lambda point: rot.dot(point) + transl
 
+def _write_pd_constraint(f, chain_id, res):
+    chain_id = chain_id if chain_id is not None else ''
+    res_num = str(res.id[1]) + \
+              (res.id[2] if res.id[2] != ' ' else '')
+    f.write(res_num + ' ' + chain_id + '\n')
 
-def output_patchdock_file(structure, filename="patchdock.txt", cutoff=50.00):
+
+def output_patchdock_ab_constraint(structure, filename="ab-patchdock.txt",
+                                   cutoff=50.00):
     model = structure[0]
-
     with open(filename, "w") as f:
         for chain in model.get_chains():
             for res in chain:
                 if any(a.get_bfactor() > cutoff for a in res):
-                    chain_id = chain.id if chain.id is not None else ''
-                    res_num = str(res.id[1]) + \
-                                (res.id[2] if res.id[2] != ' ' else '')
-                    f.write(res_num + ' ' + chain_id + '\n')
+                    _write_pd_constraint(f, chain.id, res)
+
+
+def output_patchdock_ag_constraint(ext_epitope, chain_id,
+                                   filename="ag-patchdock.txt"):
+    with open(filename, "w") as f:
+        for res in ext_epitope:
+            _write_pd_constraint(f, chain_id, res)
 
 
 def backbone_rmsd(lig_chain, transformer, interface_pred=None):

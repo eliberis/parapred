@@ -111,8 +111,8 @@ def atom_in_contact_with_chain(a, c):
     return False
 
 
-def residue_in_contact_with_chain(res, c_search):
-    return any(len(c_search.search(a.coord, CONTACT_DISTANCE)) > 0
+def residue_in_contact_with(res, c_search, dist=CONTACT_DISTANCE):
+    return any(len(c_search.search(a.coord, dist)) > 0
                for a in res.get_unpacked_list())
 
 
@@ -172,3 +172,16 @@ def save_chain(chain, file_name):
 def get_structure_from_pdb(pdb_file):
     parser = PDBParser()
     return parser.get_structure("", pdb_file)
+
+
+def extended_epitope(ag_chain, ab_h_chain, ab_l_chain, cutoff=5.0):
+    ab_model = Model(0)
+    ab_model.add(ab_h_chain)
+    ab_model.add(ab_l_chain)
+
+    ab_search = NeighborSearch(Selection.unfold_entities(ab_model, 'A'))
+    epitope = filter(lambda r: residue_in_contact_with(r, ab_search), ag_chain)
+
+    epi_search = NeighborSearch(Selection.unfold_entities(list(epitope), 'A'))
+    ext_epi = filter(lambda r: residue_in_contact_with(r, epi_search, dist=cutoff), ag_chain)
+    return list(ext_epi)

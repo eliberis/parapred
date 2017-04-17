@@ -98,7 +98,7 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
 
     for cdr_name, cdr_chain in cdrs.items():
         contact[cdr_name] = \
-            [residue_in_contact_with_chain(res, ag_search) for res in cdr_chain]
+            [residue_in_contact_with(res, ag_search) for res in cdr_chain]
         num_residues += len(contact[cdr_name])
         num_in_contact += sum(contact[cdr_name])
 

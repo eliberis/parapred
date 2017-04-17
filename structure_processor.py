@@ -110,9 +110,9 @@ def atom_in_contact_with_chain(a, c):
     return False
 
 
-def residue_in_contact_with_chain(res, c):
-    return any(map(lambda atom: atom_in_contact_with_chain(atom, c),
-                   res.get_unpacked_list()))
+def residue_in_contact_with_chain(res, c_search):
+    return any(len(c_search.search(a.coord, CONTACT_DISTANCE)) > 0
+               for a in res.get_unpacked_list())
 
 
 def annotate_chain_with_prob(c, cdr_names, probs):
@@ -162,3 +162,7 @@ def save_structure(structure, file_name):
 def get_structure_from_pdb(pdb_file):
     parser = PDBParser()
     return parser.get_structure("", pdb_file)
+
+
+def annotate_test_structures(structs, model):
+    pass

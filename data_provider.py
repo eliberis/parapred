@@ -4,14 +4,15 @@ from os.path import isfile
 from structure_processor import *
 
 PDBS = "data/pdbs/{0}.pdb"
-DATASET_DESC_FILE = "data/dataset_desc.csv"
-DATASET_MAX_CDR_LEN = 31
+TRAIN_DATASET_DESC_FILE = "data/abip_train.csv"
+TEST_DATASET_DESC_FILE = "data/abip_test.csv"
+DATASET_MAX_CDR_LEN = 31  # For padding
 DATASET_MAX_AG_LEN = 1269
 DATASET_PICKLE = "data.p"
 
 
-def compute_entries():
-    train_df = pd.read_csv(DATASET_DESC_FILE)
+def process_dataset(dataset_desc_filename):
+    df = pd.read_csv(dataset_desc_filename)
     max_cdr_len = DATASET_MAX_CDR_LEN
     max_ag_len = DATASET_MAX_AG_LEN
 
@@ -21,7 +22,7 @@ def compute_entries():
     all_cdrs = []
     all_lbls = []
     all_ags = []
-    for _, entry in train_df.iterrows():
+    for _, entry in df.iterrows():
         print("Processing PDB: ", entry['PDB'])
 
         pdb_file = entry['PDB']
@@ -30,10 +31,8 @@ def compute_entries():
         ag_chain = entry['Ag']
 
         ag_repl, cdrs, lbls, _, (nic, nr) =\
-            open_single_pdb(pdb_file, ab_h_chain,
-                            ab_l_chain, ag_chain,
-                            max_ag_len=max_ag_len,
-                            max_cdr_len=max_cdr_len)
+            process_pdb(pdb_file, ab_h_chain, ab_l_chain, ag_chain,
+                        max_ag_len=max_ag_len, max_cdr_len=max_cdr_len)
 
         num_in_contact += nic
         num_residues += nr
@@ -46,9 +45,18 @@ def compute_entries():
     lbls = np.concatenate(all_lbls, axis=0)
     ags = np.concatenate(all_ags, axis=0)
 
-    return (ags, cdrs, lbls,
-            {"max_cdr_len": max_cdr_len, "max_ag_len": max_ag_len,
-             "pos_class_weight": num_residues / num_in_contact})
+    return ags, cdrs, lbls, num_residues / num_in_contact
+
+
+def compute_entries():
+    train_set = process_dataset(TRAIN_DATASET_DESC_FILE)
+    test_set = process_dataset(TEST_DATASET_DESC_FILE)
+    param_dict = {
+        "max_ag_len": DATASET_MAX_AG_LEN,
+        "max_cdr_len": DATASET_MAX_CDR_LEN,
+        "pos_class_weight": train_set[3]
+    }
+    return train_set[0:3], test_set[0:3], param_dict # Hide class weight
 
 
 def open_dataset():
@@ -65,10 +73,10 @@ def open_dataset():
     return dataset
 
 
-def open_single_pdb(pdb_name, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
-                    max_cdr_len, max_ag_len):
+def process_pdb(pdb_name, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
+                max_cdr_len, max_ag_len):
     structure = get_structure_from_pdb(PDBS.format(pdb_name))
-    model = structure[0]
+    model = structure[0] # Only one model in the structure
 
     # Extract CDRs and the antigen chain
     cdrs = {}
@@ -81,14 +89,16 @@ def open_single_pdb(pdb_name, ab_h_chain_id, ab_l_chain_id, ag_chain_id,
     num_residues = 0
     num_in_contact = 0
     contact = {}
+
+    ag_search = NeighborSearch(Selection.unfold_entities(ag, 'A'))
+
     for cdr_name, cdr_chain in cdrs.items():
         contact[cdr_name] = \
-            [residue_in_contact_with_chain(res, ag) for res in cdr_chain]
+            [residue_in_contact_with_chain(res, ag_search) for res in cdr_chain]
         num_residues += len(contact[cdr_name])
         num_in_contact += sum(contact[cdr_name])
 
     # Convert Residue entities to amino acid sequences
-    # (TODO replace with tree building later)
     cdrs = {k: residue_seq_to_one(v) for k, v in cdrs.items()}
     ag = residue_seq_to_one(ag)
 

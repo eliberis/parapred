@@ -6,6 +6,8 @@ from plotting import *
 import numpy as np
 
 def main():
+    capri_evaluate_test_structures()
+    return
     train_set, test_set, params = open_dataset()
 
     max_ag_len = params["max_ag_len"]
@@ -29,10 +31,10 @@ def main():
 
     model.load_weights("abip-sets.h5")
 
-    probs_test = model.predict([ags_test, cdrs_test])
-    plot_prec_rec_curve(lbls_test, probs_test, output_filename="abip-sets.png")
-    annotate_and_save_test_structures(probs_test)
-
+    # probs_test = model.predict([ags_test, cdrs_test])
+    # plot_prec_rec_curve(lbls_test, probs_test,
+    # output_filename="abip-sets.png")
+    # annotate_and_save_test_structures(probs_test)
 
 if __name__ == "__main__":
     main()

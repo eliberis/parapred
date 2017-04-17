@@ -174,7 +174,7 @@ def get_structure_from_pdb(pdb_file):
     return parser.get_structure("", pdb_file)
 
 
-def extended_epitope(ag_chain, ab_h_chain, ab_l_chain, cutoff=5.0):
+def extended_epitope(ag_chain, ab_h_chain, ab_l_chain, cutoff=10.0):
     ab_model = Model(0)
     ab_model.add(ab_h_chain)
     ab_model.add(ab_l_chain)

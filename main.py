@@ -1,7 +1,7 @@
 from data_provider import *
 from structure_processor import *
 from evaluation import *
-from model import get_model
+from model import *
 from plotting import *
 import numpy as np
 
@@ -9,9 +9,8 @@ import numpy as np
 def main():
     train_set, test_set, params = open_dataset()
     kfold_cv_eval(
-        lambda: get_model(params["max_ag_len"], params["max_cdr_len"]),
+        lambda: ab_only_model(params["max_cdr_len"]),
         combine_datasets(train_set, test_set))
-
     return
 
     max_ag_len = params["max_ag_len"]

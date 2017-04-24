@@ -87,3 +87,35 @@ def get_model(max_ag_len, max_cdr_len):
                   metrics=['binary_accuracy', false_pos, false_neg],
                   sample_weight_mode="temporal")
     return model
+
+
+def baseline_model(max_cdr_len):
+    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
+    input_ab_m = Masking()(input_ab)
+
+    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(input_ab_m)
+    model = Model(inputs=input_ab, outputs=aa_probs)
+    model.compile(loss='binary_crossentropy',
+                  optimizer='adam',
+                  metrics=['binary_accuracy', false_pos, false_neg],
+                  sample_weight_mode="temporal")
+    return model
+
+
+def ab_only_model(max_cdr_len):
+    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
+    input_ab_m = Masking()(input_ab)
+
+    # Adding dropout_U here is a bad idea --- sequences are very short and
+    # all information is essential
+    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
+                               merge_mode='concat')(input_ab_m)
+
+    ab_ag_repr = Dropout(0.1)(ab_net_out)
+    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
+    model = Model(inputs=input_ab, outputs=aa_probs)
+    model.compile(loss='binary_crossentropy',
+                  optimizer='adam',
+                  metrics=['binary_accuracy', false_pos, false_neg],
+                  sample_weight_mode="temporal")
+    return model

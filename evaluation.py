@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 from plotting import plot_prec_rec_curve
 from sklearn.model_selection import KFold
 from data_provider import load_chains, TEST_DATASET_DESC_FILE
@@ -50,6 +51,10 @@ def combine_datasets(train_set, test_set):
 def kfold_cv_eval(model_func, dataset):
     ags, cdrs, lbls = dataset
     kf = KFold(n_splits=10, random_state=0, shuffle=True)
+
+    all_lbls = []
+    all_probs = []
+
     for i, (train_idx, test_idx) in enumerate(kf.split(cdrs)):
         print("Fold: ", i + 1)
 
@@ -67,5 +72,17 @@ def kfold_cv_eval(model_func, dataset):
         model.save_weights("fold_weights/{}.h5".format(i))
 
         probs_test = model.predict([ags_test, cdrs_test])
-        plot_prec_rec_curve(lbls_test, probs_test,
-                            output_filename="fold_weights/abip-sets-{}.png".format(i))
+        all_lbls.append(lbls_test)
+        all_probs.append(probs_test)
+
+    lbl_mat = np.concatenate(all_lbls)
+    prob_mat = np.concatenate(all_probs)
+
+    with open("fold_weights/dump.p", "wb") as f:
+        pickle.dump((lbl_mat, prob_mat), f)
+
+    # with open("fold_weights/dump.p", "rb") as f:
+    #     lbl_mat, prob_mat = pickle.load(f)
+
+    plot_prec_rec_curve(lbl_mat, prob_mat, "PR curve for a sequence-only model",
+                        output_filename="fold_weights/full.pdf")

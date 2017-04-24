@@ -107,6 +107,7 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     ag = residue_seq_to_one(ag_chain)
 
     # Convert to matrices
+    # TODO: could simplify with keras.preprocessing.sequence.pad_sequences
     cdr_mats = []
     cont_mats = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:

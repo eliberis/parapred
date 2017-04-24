@@ -5,10 +5,14 @@ from model import get_model
 from plotting import *
 import numpy as np
 
+
 def main():
-    capri_evaluate_test_structures()
-    return
     train_set, test_set, params = open_dataset()
+    kfold_cv_eval(
+        lambda: get_model(params["max_ag_len"], params["max_cdr_len"]),
+        combine_datasets(train_set, test_set))
+
+    return
 
     max_ag_len = params["max_ag_len"]
     max_cdr_len = params["max_cdr_len"]

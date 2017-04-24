@@ -1,3 +1,6 @@
+import numpy as np
+from plotting import plot_prec_rec_curve
+from sklearn.model_selection import KFold
 from data_provider import load_chains, TEST_DATASET_DESC_FILE
 from structure_processor import save_chain, save_structure, \
     produce_annotated_ab_structure, extended_epitope
@@ -9,6 +12,7 @@ AG_STRUCT_SAVE_PATH = "data/annotated/{0}_AG.pdb"
 AB_PATCHDOCK_SAVE_PATH = "data/annotated/{0}_ab_patchdock.txt"
 AG_PATCHDOCK_SAVE_PATH = "data/annotated/{0}_ag_patchdock.txt"
 PATCHDOCK_RESULTS_PATH = "data/results/{0}.txt"
+
 
 def annotate_and_save_test_structures(probs):
     chains = load_chains(TEST_DATASET_DESC_FILE)
@@ -32,3 +36,36 @@ def capri_evaluate_test_structures():
     for ag_chain, ab_h_chain, ab_l_chain, pdb_name in chains:
         trans_file = PATCHDOCK_RESULTS_PATH.format(pdb_name)
         process_transformations(trans_file, ag_chain, ab_h_chain, ab_l_chain)
+
+
+def combine_datasets(train_set, test_set):
+    ags_train, cdrs_train, lbls_train = train_set
+    ags_test, cdrs_test, lbls_test = test_set
+    ags = np.concatenate((ags_train, ags_test))
+    cdrs = np.concatenate((cdrs_train, cdrs_test))
+    lbls = np.concatenate((lbls_train, lbls_test))
+    return ags, cdrs, lbls
+
+
+def kfold_cv_eval(model_func, dataset):
+    ags, cdrs, lbls = dataset
+    kf = KFold(n_splits=10, random_state=0, shuffle=True)
+    for i, (train_idx, test_idx) in enumerate(kf.split(cdrs)):
+        print("Fold: ", i + 1)
+
+        ags_train, cdrs_train, lbls_train = \
+            ags[train_idx], cdrs[train_idx], lbls[train_idx]
+        ags_test, cdrs_test, lbls_test = \
+            ags[test_idx], cdrs[test_idx], lbls[test_idx]
+
+        example_weight = np.squeeze(lbls_train * 5 + 1)  # 6-to-1 in favour of 1
+        model = model_func()
+        model.fit([ags_train, cdrs_train], lbls_train,
+                             batch_size=32, epochs=30,
+                             sample_weight=example_weight)
+
+        model.save_weights("fold_weights/{}.h5".format(i))
+
+        probs_test = model.predict([ags_test, cdrs_test])
+        plot_prec_rec_curve(lbls_test, probs_test,
+                            output_filename="fold_weights/abip-sets-{}.png".format(i))

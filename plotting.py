@@ -3,24 +3,37 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def plot_accuracies(history,
-                    prec_filename="prec.png",
-                    loss_filename="loss.png"):
-    plt.plot(history.history['precision'])
-    plt.plot(history.history['val_precision'])
-    plt.title('model precision')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.savefig(prec_filename)
+def plot_stats(history, plot_filename="stats.pdf"):
+    plt.figure()
+    plt.rc('text', usetex=True)
+    plt.rc('font', family='sans-serif')
+    plt.title('Metrics vs number of epochs')
 
+    plt.subplot(3, 1, 1)
     plt.plot(history.history['loss'])
     plt.plot(history.history['val_loss'])
-    plt.title('model loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.savefig(loss_filename)
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.yticks(np.arange(0.0, 1.0, 0.2))
+    plt.legend(['Training set', 'Validation set'], loc='upper left')
+
+    plt.subplot(3, 1, 2)
+    plt.plot(history.history['false_pos'])
+    plt.plot(history.history['val_false_pos'])
+    plt.ylabel('False positive rate')
+    plt.xlabel('Epoch')
+    plt.yticks(np.arange(0.0, 0.5, 0.1))
+    plt.legend(['Training set', 'Validation set'], loc='upper left')
+
+    plt.subplot(3, 1, 3)
+    plt.plot(history.history['false_neg'])
+    plt.plot(history.history['val_false_neg'])
+    plt.ylabel('False negative rate')
+    plt.xlabel('Epoch')
+    plt.yticks(np.arange(0.0, 0.5, 0.1))
+    plt.legend(['Training set', 'Validation set'], loc='upper left')
+
+    plt.savefig(plot_filename)
 
 
 def plot_prec_rec_curve(labels_test, probs_test, plot_name="",

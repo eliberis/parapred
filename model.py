@@ -5,7 +5,9 @@ from keras.layers.merge import concatenate
 import keras.backend as K
 from data_provider import NUM_CDR_FEATURES, NUM_AG_FEATURES
 
-RNN_STATE_SIZE = 128
+
+AG_RNN_STATE_SIZE = 128
+AB_RNN_STATE_SIZE = 128
 CONV_FILTERS = 32
 CONV_FILTER_SPAN = 9
 
@@ -35,7 +37,7 @@ class MaskingByLambda(Layer):
 
 # Base masking decision only on the first elements
 def mask(input, mask):
-    return K.any(K.not_equal(input[:, :, :(2*RNN_STATE_SIZE)], 0.0), axis=-1)
+    return K.any(K.not_equal(input[:, :, :AB_RNN_STATE_SIZE], 0.0), axis=-1)
 
 
 # 1D convolution that supports masking by retaining the mask of the input
@@ -63,8 +65,8 @@ def get_model(max_ag_len, max_cdr_len):
     #                                     padding='same')(input_ag_m)
     # input_ag_m2 = Masking()(input_ag_conv) # Probably unnecessary, investigate
 
-    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE,
-                                dropout=0.1,
+    enc_ag = Bidirectional(LSTM(AG_RNN_STATE_SIZE,
+                                dropout=0.2,
                                 recurrent_dropout=0.1),
                            merge_mode='concat')(input_ag_m)
 
@@ -73,13 +75,14 @@ def get_model(max_ag_len, max_cdr_len):
 
     # Adding recurrent dropout here is a bad idea
     # --- sequences are very short
-    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
+    ab_net_out = Bidirectional(LSTM(AB_RNN_STATE_SIZE,
+                                    return_sequences=True),
                                merge_mode='concat')(input_ab_m)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
     ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])
     ab_ag_repr = MaskingByLambda(mask)(ab_ag_repr)
-    ab_ag_repr = Dropout(0.1)(ab_ag_repr)
+    ab_ag_repr = Dropout(0.2)(ab_ag_repr)
 
     aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
     model = Model(inputs=[input_ag, input_ab], outputs=aa_probs)
@@ -109,7 +112,7 @@ def ab_only_model(max_cdr_len):
 
     # Adding dropout_U here is a bad idea --- sequences are very short and
     # all information is essential
-    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
+    ab_net_out = Bidirectional(LSTM(AB_RNN_STATE_SIZE, return_sequences=True),
                                merge_mode='concat')(input_ab_m)
 
     ab_ag_repr = Dropout(0.1)(ab_net_out)

@@ -68,12 +68,16 @@ def kfold_cv_eval(model_func, dataset):
         example_weight = np.squeeze(lbls_train * 1.5 + 1)
         model = model_func()
         model.fit([ags_train, cdrs_train], lbls_train,
-                  batch_size=32, epochs=20,
+                  batch_size=32, epochs=13,
                   sample_weight=example_weight)
 
         model.save_weights("fold_weights/{}.h5".format(i))
 
         probs_test = model.predict([ags_test, cdrs_test])
+        plot_prec_rec_curve(lbls_test, probs_test,
+                            "PR curve for a structural info-enabled model",
+                            output_filename="fold_weights/{}.pdf".format(i))
+
         all_lbls.append(lbls_test)
         all_probs.append(probs_test)
         all_masks.append(mask_test)
@@ -92,7 +96,7 @@ def kfold_cv_eval(model_func, dataset):
     lbls_flat = flatten_with_lengths(lbl_mat, seq_lens)
     probs_flat = flatten_with_lengths(prob_mat, seq_lens)
 
-    plot_prec_rec_curve(lbls_flat, probs_flat, "PR curve for a sequence-only model",
+    plot_prec_rec_curve(lbls_flat, probs_flat, "PR curve for a structural info-enabled model",
                         output_filename="fold_weights/full.pdf")
 
 

@@ -29,7 +29,7 @@ def main():
     example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
 
     history = model.fit([ags_train, cdrs_train], lbls_train,
-                        batch_size=32, epochs=15,
+                        batch_size=32, epochs=35, validation_split=0.1,
                         sample_weight=example_weight)
 
     probs_test = model.predict([ags_test, cdrs_test])

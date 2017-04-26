@@ -37,7 +37,7 @@ def plot_stats(history, plot_filename="stats.pdf"):
 
 
 def plot_prec_rec_curve(labels_test, probs_test, plot_name="",
-                        output_filename="proc.png"):
+                        output_filename="proc.pdf"):
     plt.figure(figsize=(4.5, 3.5))
 
     abip_rec = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.92])
@@ -65,4 +65,26 @@ def plot_prec_rec_curve(labels_test, probs_test, plot_name="",
 
     plt.title(plot_name)
     plt.legend()
+    plt.savefig(output_filename)
+
+
+def plot_roc_curve(labels_test, probs_test, plot_name="ROC Curve",
+                   output_filename="roc.pdf"):
+    plt.figure(figsize=(3.5, 3.5))
+
+    fpr, tpr, thresholds = \
+        metrics.roc_curve(labels_test.flatten(), probs_test.flatten())
+
+    plt.rc('text', usetex=True)
+    plt.rc('font', family='sans-serif')
+
+    plt.plot(fpr, tpr, c="#0072CF", label="ParaPred")
+
+    plt.ylabel("True positive rate")
+    plt.yticks(np.arange(0.0, 1.01, 0.2))
+
+    plt.xlabel("False positive rate")
+    plt.xticks(np.arange(0.0, 1.01, 0.2))
+
+    plt.title(plot_name)
     plt.savefig(output_filename)

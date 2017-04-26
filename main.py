@@ -34,7 +34,9 @@ def main():
 
     model.load_weights("abip-sets.h5")
 
-    # probs_test = model.predict([ags_test, cdrs_test])
+    probs_test = model.predict([ags_test, cdrs_test])
+    plot_roc_curve(lbls_test, probs_test)
+
     # plot_prec_rec_curve(lbls_test, probs_test,
     # output_filename="abip-sets.png")
     # annotate_and_save_test_structures(probs_test)

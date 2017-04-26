@@ -59,7 +59,7 @@ def single_run():
 def crossvalidation_eval():
     train_set, test_set, params = open_dataset()
     model_factory = \
-        lambda: ab_only_model(params["max_ag_len"], params["max_cdr_len"])
+        lambda: get_model(params["max_ag_len"], params["max_cdr_len"])
     dataset = combine_datasets(train_set, test_set)
 
     for i in range(1):
@@ -85,7 +85,7 @@ def process_cv_results():
         labels.append(l)
 
     plot_prec_rec_curve(labels, probs,
-                        plot_name="PR curve for the final sequence-only model",
+                        plot_name="PR curve for the structural info-enabled model",
                         output_filename="seq-only.pdf")
 
 

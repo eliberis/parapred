@@ -75,7 +75,7 @@ def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
 
         rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
 
-        model.fit([cdrs_train, np.squeeze(mask_train)],
+        model.fit([ags_train, cdrs_train, np.squeeze(mask_train)],
                   lbls_train,
                   batch_size=32, epochs=25,
                   sample_weight=example_weight,
@@ -83,7 +83,8 @@ def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
 
         model.save_weights(weights_template.format(i))
 
-        probs_test = model.predict([cdrs_test, np.squeeze(mask_test)])
+        probs_test = model.predict([ags_test, cdrs_test, np.squeeze(mask_test)])
+
         all_lbls.append(lbls_test)
         all_probs.append(probs_test)
         all_masks.append(mask_test)

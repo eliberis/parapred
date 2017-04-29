@@ -34,10 +34,11 @@ def process_dataset(desc_file):
     all_cdrs = []
     all_lbls = []
     all_ags = []
+    all_cdr_masks = []
 
     for ag_chain, ab_h_chain, ab_l_chain, _ in load_chains(desc_file):
         # Sadly, Biopython structures can't be pickled, it seems
-        ag_repl, cdrs, lbls, (nic, nr) =\
+        ag_repl, cdrs, lbls, cdr_mask, (nic, nr) =\
             process_chains(ag_chain, ab_h_chain, ab_l_chain,
                            max_ag_len=DATASET_MAX_AG_LEN,
                            max_cdr_len=DATASET_MAX_CDR_LEN)
@@ -48,12 +49,14 @@ def process_dataset(desc_file):
         all_cdrs.append(cdrs)
         all_lbls.append(lbls)
         all_ags.append(ag_repl)
+        all_cdr_masks.append(cdr_mask)
 
     cdrs = np.concatenate(all_cdrs, axis=0)
     lbls = np.concatenate(all_lbls, axis=0)
     ags = np.concatenate(all_ags, axis=0)
+    cdr_masks = np.concatenate(all_cdr_masks, axis=0)
 
-    return ags, cdrs, lbls, num_residues / num_in_contact
+    return ags, cdrs, lbls, cdr_masks, num_residues / num_in_contact
 
 
 def compute_entries():
@@ -62,9 +65,9 @@ def compute_entries():
     param_dict = {
         "max_ag_len": DATASET_MAX_AG_LEN,
         "max_cdr_len": DATASET_MAX_CDR_LEN,
-        "pos_class_weight": train_set[3]
+        "pos_class_weight": train_set[4]
     }
-    return train_set[0:3], test_set[0:3], param_dict  # Hide class weight
+    return train_set[0:4], test_set[0:4], param_dict  # Hide class weight
 
 
 def open_dataset():
@@ -110,8 +113,10 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     # TODO: could simplify with keras.preprocessing.sequence.pad_sequences
     cdr_mats = []
     cont_mats = []
+    cdr_masks = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
         cdr_chain = cdrs[cdr_name]
+
         cdr_mat = seq_to_one_hot(cdr_chain)
         cdr_mat_pad = np.zeros((max_cdr_len, NUM_FEATURES))
         cdr_mat_pad[:cdr_mat.shape[0], :] = cdr_mat
@@ -122,8 +127,13 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
         cont_mat_pad[:cont_mat.shape[0], 0] = cont_mat
         cont_mats.append(cont_mat_pad)
 
+        cdr_mask = np.zeros((max_cdr_len, 1), dtype=int)
+        cdr_mask[:len(cdr_chain), 0] = 1.0
+        cdr_masks.append(cdr_mask)
+
     cdrs = np.stack(cdr_mats)
     lbls = np.stack(cont_mats)
+    masks = np.stack(cdr_masks)
 
     ag_mat = seq_to_one_hot(ag)
     ag_mat_pad = np.zeros((max_ag_len, NUM_FEATURES))
@@ -133,4 +143,4 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     ag_repl = np.resize(ag_mat_pad,
                         (6, ag_mat_pad.shape[0], ag_mat_pad.shape[1]))
 
-    return ag_repl, cdrs, lbls, (num_in_contact, num_residues)
+    return ag_repl, cdrs, lbls, masks, (num_in_contact, num_residues)

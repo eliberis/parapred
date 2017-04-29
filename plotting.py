@@ -14,7 +14,6 @@ def plot_stats(history, plot_filename="stats.pdf"):
     plt.plot(history.history['val_loss'])
     plt.ylabel('Loss')
     plt.xlabel('Epoch')
-    plt.yticks(np.arange(0.0, 1.0, 0.2))
     plt.legend(['Training set', 'Validation set'], loc='upper left')
 
     plt.subplot(3, 1, 2)
@@ -22,7 +21,6 @@ def plot_stats(history, plot_filename="stats.pdf"):
     plt.plot(history.history['val_false_pos'])
     plt.ylabel('False positive rate')
     plt.xlabel('Epoch')
-    plt.yticks(np.arange(0.0, 0.5, 0.1))
     plt.legend(['Training set', 'Validation set'], loc='upper left')
 
     plt.subplot(3, 1, 3)
@@ -30,7 +28,6 @@ def plot_stats(history, plot_filename="stats.pdf"):
     plt.plot(history.history['val_false_neg'])
     plt.ylabel('False negative rate')
     plt.xlabel('Epoch')
-    plt.yticks(np.arange(0.0, 0.5, 0.1))
     plt.legend(['Training set', 'Validation set'], loc='upper left')
 
     plt.savefig(plot_filename)
@@ -58,10 +55,7 @@ def plot_prec_rec_curve(labels_test, probs_test, plot_name="",
     plt.scatter(abip_rec, abip_pre, c='#EA7125', label="Antibody i-Patch")
 
     plt.ylabel("Precision")
-    plt.yticks(np.linspace(0.2, 1, 9))
-
     plt.xlabel("Recall")
-    plt.xticks(np.linspace(0.0, 1, 11))
 
     plt.title(plot_name)
     plt.legend()
@@ -81,10 +75,11 @@ def plot_roc_curve(labels_test, probs_test, plot_name="ROC Curve",
     plt.plot(fpr, tpr, c="#0072CF", label="ParaPred")
 
     plt.ylabel("True positive rate")
-    plt.yticks(np.arange(0.0, 1.01, 0.2))
-
     plt.xlabel("False positive rate")
-    plt.xticks(np.arange(0.0, 1.01, 0.2))
 
     plt.title(plot_name)
     plt.savefig(output_filename)
+
+
+def confusion_matrix(true, pred):
+    return metrics.confusion_matrix(true, pred)

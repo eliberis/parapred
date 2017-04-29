@@ -40,43 +40,47 @@ def capri_evaluate_test_structures():
 
 
 def combine_datasets(train_set, test_set):
-    ags_train, cdrs_train, lbls_train = train_set
-    ags_test, cdrs_test, lbls_test = test_set
+    ags_train, cdrs_train, lbls_train, mask_train = train_set
+    ags_test, cdrs_test, lbls_test, mask_test = test_set
     ags = np.concatenate((ags_train, ags_test))
     cdrs = np.concatenate((cdrs_train, cdrs_test))
     lbls = np.concatenate((lbls_train, lbls_test))
-    return ags, cdrs, lbls
+    masks = np.concatenate((mask_train, mask_test))
+    return ags, cdrs, lbls, masks
 
 
 def kfold_cv_eval(model_func, dataset):
-    ags, cdrs, lbls = dataset
+    ags, cdrs, lbls, masks = dataset
     kf = KFold(n_splits=10, random_state=0, shuffle=True)
 
     all_lbls = []
     all_probs = []
+    all_masks = []
 
     for i, (train_idx, test_idx) in enumerate(kf.split(cdrs)):
         print("Fold: ", i + 1)
 
-        ags_train, cdrs_train, lbls_train = \
-            ags[train_idx], cdrs[train_idx], lbls[train_idx]
-        ags_test, cdrs_test, lbls_test = \
-            ags[test_idx], cdrs[test_idx], lbls[test_idx]
+        ags_train, cdrs_train, lbls_train, mask_train = \
+            ags[train_idx], cdrs[train_idx], lbls[train_idx], masks[train_idx]
+        ags_test, cdrs_test, lbls_test, mask_test = \
+            ags[test_idx], cdrs[test_idx], lbls[test_idx], masks[test_idx]
 
-        example_weight = np.squeeze(lbls_train * 5 + 1)  # 6-to-1 in favour of 1
+        example_weight = np.squeeze(lbls_train * 1.5 + 1)
         model = model_func()
         model.fit([ags_train, cdrs_train], lbls_train,
-                             batch_size=32, epochs=30,
-                             sample_weight=example_weight)
+                  batch_size=32, epochs=20,
+                  sample_weight=example_weight)
 
         model.save_weights("fold_weights/{}.h5".format(i))
 
         probs_test = model.predict([ags_test, cdrs_test])
         all_lbls.append(lbls_test)
         all_probs.append(probs_test)
+        all_masks.append(mask_test)
 
     lbl_mat = np.concatenate(all_lbls)
     prob_mat = np.concatenate(all_probs)
+    mask_mat = np.concatenate(all_masks)
 
     with open("fold_weights/dump.p", "wb") as f:
         pickle.dump((lbl_mat, prob_mat), f)
@@ -84,5 +88,17 @@ def kfold_cv_eval(model_func, dataset):
     # with open("fold_weights/dump.p", "rb") as f:
     #     lbl_mat, prob_mat = pickle.load(f)
 
-    plot_prec_rec_curve(lbl_mat, prob_mat, "PR curve for a sequence-only model",
+    seq_lens = np.sum(np.squeeze(mask_mat), axis=1)
+    lbls_flat = flatten_with_lengths(lbl_mat, seq_lens)
+    probs_flat = flatten_with_lengths(prob_mat, seq_lens)
+
+    plot_prec_rec_curve(lbls_flat, probs_flat, "PR curve for a sequence-only model",
                         output_filename="fold_weights/full.pdf")
+
+
+def flatten_with_lengths(matrix, lengths):
+    seqs = []
+    for i, example in enumerate(matrix):
+        seq = example[:lengths[i]]
+        seqs.append(seq)
+    return np.concatenate(seqs)

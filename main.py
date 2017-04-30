@@ -8,31 +8,32 @@ import numpy as np
 
 def main():
     train_set, test_set, params = open_dataset()
-    kfold_cv_eval(
-        lambda: get_model(params["max_ag_len"], params["max_cdr_len"]),
-        combine_datasets(train_set, test_set))
-    return
+    # kfold_cv_eval(
+    #     lambda: get_model(params["max_ag_len"], params["max_cdr_len"]),
+    #     combine_datasets(train_set, test_set))
+    # return
 
     max_ag_len = params["max_ag_len"]
     max_cdr_len = params["max_cdr_len"]
+    max_ag_atoms = params["max_ag_atoms"]
     pos_class_weight = params["pos_class_weight"]
 
     print("Max AG length:", max_ag_len)
     print("Max CDR length:", max_cdr_len)
     print("Pos class weight:", pos_class_weight)
 
-    model = get_model(params["max_ag_len"], params["max_cdr_len"])
+    model = get_model(max_ag_len, max_cdr_len, max_ag_atoms)
     print(model.summary())
 
-    ags_train, cdrs_train, lbls_train, mask_train = train_set
-    ags_test, cdrs_test, lbls_test, mask_test = test_set
+    ags_train, ags_atoms_train, cdrs_train, lbls_train, mask_train = train_set
+    ags_test, ags_atoms_test, cdrs_test, lbls_test, mask_test = test_set
     example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
 
-    history = model.fit([ags_train, cdrs_train], lbls_train,
-                        batch_size=32, epochs=35, validation_split=0.1,
+    history = model.fit([ags_train, ags_atoms_train, cdrs_train], lbls_train,
+                        batch_size=32, epochs=40, validation_split=0.1,
                         sample_weight=example_weight)
 
-    probs_test = model.predict([ags_test, cdrs_test])
+    probs_test = model.predict([ags_test, ags_atoms_test, cdrs_test])
 
     test_seq_lens = np.sum(np.squeeze(mask_test), axis=1)
     probs_flat = flatten_with_lengths(probs_test, test_seq_lens)

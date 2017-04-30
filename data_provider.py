@@ -9,6 +9,7 @@ TEST_DATASET_DESC_FILE = "data/abip_test.csv"
 DATASET_MAX_CDR_LEN = 31  # For padding
 DATASET_MAX_AG_LEN = 1269
 DATASET_MAX_AG_ATOMS = 10213
+DATASET_MAX_CDR_ATOMS = 486
 DATASET_PICKLE = "data.p"
 
 
@@ -37,10 +38,11 @@ def process_dataset(desc_file):
     all_ags = []
     all_ag_atoms = []
     all_cdr_masks = []
+    all_cdr_atoms = []
 
     for ag_chain, ab_h_chain, ab_l_chain, _ in load_chains(desc_file):
         # Sadly, Biopython structures can't be pickled, it seems
-        ag_repl, ag_atoms, cdrs, lbls, cdr_mask, (nic, nr) =\
+        ag_repl, ag_atoms, cdrs, cdr_atoms, lbls, cdr_mask, (nic, nr) =\
             process_chains(ag_chain, ab_h_chain, ab_l_chain,
                            max_ag_len=DATASET_MAX_AG_LEN,
                            max_cdr_len=DATASET_MAX_CDR_LEN)
@@ -53,14 +55,17 @@ def process_dataset(desc_file):
         all_ags.append(ag_repl)
         all_cdr_masks.append(cdr_mask)
         all_ag_atoms.append(ag_atoms)
+        all_cdr_atoms.append(cdr_atoms)
 
     cdrs = np.concatenate(all_cdrs, axis=0)
     lbls = np.concatenate(all_lbls, axis=0)
     ags = np.concatenate(all_ags, axis=0)
     cdr_masks = np.concatenate(all_cdr_masks, axis=0)
     ag_atoms = np.concatenate(all_ag_atoms, axis=0)
+    cdr_atoms = np.concatenate(all_cdr_atoms, axis=0)
 
-    return ags, ag_atoms, cdrs, lbls, cdr_masks, num_residues / num_in_contact
+    return ags, ag_atoms, cdrs, cdr_atoms, lbls, cdr_masks, \
+           num_residues / num_in_contact
 
 
 def compute_entries():
@@ -70,9 +75,10 @@ def compute_entries():
         "max_ag_len": DATASET_MAX_AG_LEN,
         "max_cdr_len": DATASET_MAX_CDR_LEN,
         "max_ag_atoms": DATASET_MAX_AG_ATOMS,
-        "pos_class_weight": train_set[5]
+        "max_cdr_atoms": DATASET_MAX_CDR_ATOMS,
+        "pos_class_weight": train_set[6]
     }
-    return train_set[0:5], test_set[0:5], param_dict  # Hide class weight
+    return train_set[:6], test_set[:6], param_dict  # Hide class weight
 
 
 def open_dataset():
@@ -133,6 +139,7 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     cdr_mats = []
     cont_mats = []
     cdr_masks = []
+    cdr_atoms = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
         cdr_chain = cdrs[cdr_name]
 
@@ -141,6 +148,10 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
         cdr_mat_pad = np.zeros((max_cdr_len, NEIGHBOURHOOD_FEATURES))
         cdr_mat_pad[:cdr_mat.shape[0], :] = cdr_mat
         cdr_mats.append(cdr_mat_pad)
+
+        cdr_atom_list = [atom for res in cdr_chain for atom in res[0][1]]
+        cdr_atom_feats = atom_list_to_feat_seq(cdr_atom_list, DATASET_MAX_CDR_ATOMS)
+        cdr_atoms.append(cdr_atom_feats)
 
         cont_mat = np.array(contact[cdr_name], dtype=float)
         cont_mat_pad = np.zeros((max_cdr_len, 1))
@@ -154,6 +165,7 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     cdrs = np.stack(cdr_mats)
     lbls = np.stack(cont_mats)
     masks = np.stack(cdr_masks)
+    cdr_atoms = np.stack(cdr_atoms)
 
     ag_neighs = [neighbour_list_to_matrix(
                     residue_neighbourhood(r, ag_chain, RESIDUE_NEIGHBOURS))
@@ -171,4 +183,5 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     ag_atom = np.resize(ag_atom_feats,
                         (6, ag_atom_feats.shape[0], ag_atom_feats.shape[1]))
 
-    return ag_repl, ag_atom, cdrs, lbls, masks, (num_in_contact, num_residues)
+    return ag_repl, ag_atom, cdrs, cdr_atoms, lbls, masks, \
+           (num_in_contact, num_residues)

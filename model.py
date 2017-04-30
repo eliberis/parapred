@@ -63,16 +63,25 @@ class MaskedConvolution1D(Convolution1D):
 
 
 class TNet(Layer):
-    def __init__(self, localisation_net, orthog_loss=False, **kwargs):
+    def __init__(self, localisation_net, point_dim, orthog_loss=0.0,
+                 **kwargs):
         self.loc_net = localisation_net
         self.orthog_loss = orthog_loss
+        self.point_dim = point_dim
         super().__init__(**kwargs)
+
+    def orthogonal_regularisation_loss(self, mat):
+        # Assuming mat is square
+        mat_trans = K.permute_dimensions(mat, (0, 2, 1))
+        return self.orthog_loss * K.sum(
+            K.square(K.eye(self.point_dim) - K.batch_dot(mat, mat_trans)))
 
     def call(self, x):
         # Could verify shapes here
         transform_mat = self.loc_net(x)
-        if self.orthog_loss:
-            pass # TODO: regularise transform-mat
+        if self.orthog_loss > 0.0:
+            self.add_loss(self.orthogonal_regularisation_loss(transform_mat),
+                          inputs=[x])
 
         result = K.batch_dot(x, transform_mat)
         return result
@@ -118,7 +127,7 @@ def loc_net(max_points, point_dim):
 
 def point_net(max_points):
     input_pts = Input(shape=(max_points, 3))
-    trans_pts = TNet(loc_net(max_points, 3))(input_pts)
+    trans_pts = TNet(loc_net(max_points, 3), 3)(input_pts)
 
     # Note: Not entirely sure what PointNet authors meant here
     x = Convolution1D(64, 1, padding='valid')(trans_pts)
@@ -129,7 +138,7 @@ def point_net(max_points):
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
 
-    local_fts = TNet(loc_net(max_points, 64))(x)
+    local_fts = TNet(loc_net(max_points, 64), 64, orthog_loss=0.001)(x)
 
     x = Convolution1D(64, 1, padding='valid')(local_fts)
     x = BatchNormalization()(x)

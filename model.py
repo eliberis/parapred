@@ -135,38 +135,36 @@ def get_model(max_ag_len, max_cdr_len, max_ag_atoms, max_cdr_atoms):
     input_ag = Input(shape=(max_ag_len, NUM_AG_FEATURES))
     input_ag_m = Masking()(input_ag)
 
-    input_ag_atoms = Input(shape=(max_ag_atoms, 3))
-    global_ag_feat = point_net(max_ag_atoms)(input_ag_atoms)
-    global_ag_feat = RepeatVector(max_ag_len)(global_ag_feat)
-    ag = concatenate([input_ag_m, global_ag_feat])
-    ag_m = MaskingByLambda(ag_mask)(ag)
-
     enc_ag = Bidirectional(LSTM(AG_RNN_STATE_SIZE,
                                 dropout=0.2,
                                 recurrent_dropout=0.1),
-                           merge_mode='concat')(ag_m)
+                           merge_mode='concat')(input_ag_m)
+
+    input_ag_atoms = Input(shape=(max_ag_atoms, 3))
+    global_ag_feat = point_net(max_ag_atoms)(input_ag_atoms)
 
     input_ab = Input(shape=(max_cdr_len, NUM_CDR_FEATURES))
     input_ab_m = Masking()(input_ab)
-
-    input_ab_atoms = Input(shape=(max_cdr_atoms, 3))
-    global_ab_feat = point_net(max_cdr_atoms)(input_ab_atoms)
-    global_ab_feat = RepeatVector(max_cdr_len)(global_ab_feat)
-    ab = concatenate([input_ab_m, global_ab_feat])
-    ab_m = MaskingByLambda(ab_mask)(ab)
 
     # Adding recurrent dropout here is a bad idea
     # --- sequences are very short
     ab_net_out = Bidirectional(LSTM(AB_RNN_STATE_SIZE,
                                     return_sequences=True),
-                               merge_mode='concat')(ab_m)
+                               merge_mode='concat')(input_ab_m)
 
-    enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
-    ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])
+    input_ab_atoms = Input(shape=(max_cdr_atoms, 3))
+    global_ab_feat = point_net(max_cdr_atoms)(input_ab_atoms)
+
+    feats = concatenate([enc_ag, global_ag_feat, global_ab_feat])
+    feats = RepeatVector(max_cdr_len)(feats)
+
+    ab_ag_repr = concatenate([ab_net_out, feats])
     ab_ag_repr = MaskingByLambda(ab_mask)(ab_ag_repr)
     ab_ag_repr = Dropout(0.2)(ab_ag_repr)
 
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
+    aa_f = TimeDistributed(Dense(64, activation='elu'))(ab_ag_repr)
+    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(aa_f)
+
     model = Model(inputs=[input_ag, input_ag_atoms, input_ab, input_ab_atoms],
                   outputs=aa_probs)
     model.compile(loss='binary_crossentropy',

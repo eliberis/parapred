@@ -91,31 +91,17 @@ def loc_net(max_points, point_dim):
     input_points = Input(shape=(max_points, point_dim))
 
     # Transform each point to get 1024 features
-    x = Convolution1D(64, 1, padding='valid')(input_points)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
-    x = Convolution1D(128, 1, padding='valid')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
-    x = Convolution1D(1024, 1, padding='valid')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
+    x = Convolution1D(64, 1, padding='valid', activation='elu')(input_points)
+    x = Convolution1D(128, 1, padding='valid', activation='elu')(x)
+    x = Convolution1D(1024, 1, padding='valid', activation='elu')(x)
 
     # Select max of all points
     x = MaxPool1D(pool_size=max_points)(x)
     x = Flatten()(x) # Remove the point dimension
 
     # Use FCs to reduce to the transformation matrix
-    x = Dense(512)(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
-    x = Dense(256)(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
+    x = Dense(512, activation='elu')(x)
+    x = Dense(256, activation='elu')(x)
     x = Dense(point_dim * point_dim)(x)
 
     # Add an identity matrix
@@ -130,27 +116,14 @@ def point_net(max_points):
     trans_pts = TNet(loc_net(max_points, 3), 3)(input_pts)
 
     # Note: Not entirely sure what PointNet authors meant here
-    x = Convolution1D(64, 1, padding='valid')(trans_pts)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
-    x = Convolution1D(64, 1, padding='valid')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
+    x = Convolution1D(64, 1, padding='valid', activation='elu')(trans_pts)
+    x = Convolution1D(64, 1, padding='valid', activation='elu')(x)
 
     local_fts = TNet(loc_net(max_points, 64), 64, orthog_loss=0.001)(x)
 
-    x = Convolution1D(64, 1, padding='valid')(local_fts)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
-    x = Convolution1D(128, 1, padding='valid')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
-    x = Convolution1D(1024, 1, padding='valid')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
+    x = Convolution1D(64, 1, padding='valid', activation='elu')(local_fts)
+    x = Convolution1D(128, 1, padding='valid', activation='elu')(x)
+    x = Convolution1D(1024, 1, padding='valid', activation='elu')(x)
 
     x = MaxPool1D(pool_size=max_points)(x)
     global_feat = Flatten()(x) # Remove the point dimension

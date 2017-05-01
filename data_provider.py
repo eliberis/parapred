@@ -8,8 +8,9 @@ TRAIN_DATASET_DESC_FILE = "data/abip_train.csv"
 TEST_DATASET_DESC_FILE = "data/abip_test.csv"
 DATASET_MAX_CDR_LEN = 31  # For padding
 DATASET_MAX_AG_LEN = 1269
-DATASET_MAX_AG_ATOMS = 10213
-DATASET_MAX_CDR_ATOMS = 486
+DATASET_MAX_ATOMS_PER_RESIDUE = 24
+DATASET_MAX_CDR_ATOMS = DATASET_MAX_CDR_LEN * DATASET_MAX_ATOMS_PER_RESIDUE
+DATASET_MAX_AG_ATOMS = DATASET_MAX_AG_LEN * DATASET_MAX_ATOMS_PER_RESIDUE
 DATASET_PICKLE = "data.p"
 
 
@@ -33,39 +34,31 @@ def process_dataset(desc_file):
     num_in_contact = 0
     num_residues = 0
 
-    all_cdrs = []
-    all_lbls = []
-    all_ags = []
     all_ag_atoms = []
-    all_cdr_masks = []
     all_cdr_atoms = []
+    all_lbls = []
+    all_cont_masks = []
 
     for ag_chain, ab_h_chain, ab_l_chain, _ in load_chains(desc_file):
         # Sadly, Biopython structures can't be pickled, it seems
-        ag_repl, ag_atoms, cdrs, cdr_atoms, lbls, cdr_mask, (nic, nr) =\
-            process_chains(ag_chain, ab_h_chain, ab_l_chain,
-                           max_ag_len=DATASET_MAX_AG_LEN,
-                           max_cdr_len=DATASET_MAX_CDR_LEN)
+        ag_atoms, cdr_atoms, lbls, cont_mask, (nic, nr) =\
+            process_chains(ag_chain, ab_h_chain, ab_l_chain)
 
         num_in_contact += nic
         num_residues += nr
 
-        all_cdrs.append(cdrs)
-        all_lbls.append(lbls)
-        all_ags.append(ag_repl)
-        all_cdr_masks.append(cdr_mask)
         all_ag_atoms.append(ag_atoms)
         all_cdr_atoms.append(cdr_atoms)
 
-    cdrs = np.concatenate(all_cdrs, axis=0)
-    lbls = np.concatenate(all_lbls, axis=0)
-    ags = np.concatenate(all_ags, axis=0)
-    cdr_masks = np.concatenate(all_cdr_masks, axis=0)
+        all_lbls.append(lbls)
+        all_cont_masks.append(cont_mask)
+
     ag_atoms = np.concatenate(all_ag_atoms, axis=0)
     cdr_atoms = np.concatenate(all_cdr_atoms, axis=0)
+    lbls = np.concatenate(all_lbls, axis=0)
+    cont_masks = np.concatenate(all_cont_masks, axis=0)
 
-    return ags, ag_atoms, cdrs, cdr_atoms, lbls, cdr_masks, \
-           num_residues / num_in_contact
+    return ag_atoms, cdr_atoms, lbls, cont_masks, num_residues / num_in_contact
 
 
 def compute_entries():
@@ -76,9 +69,10 @@ def compute_entries():
         "max_cdr_len": DATASET_MAX_CDR_LEN,
         "max_ag_atoms": DATASET_MAX_AG_ATOMS,
         "max_cdr_atoms": DATASET_MAX_CDR_ATOMS,
-        "pos_class_weight": train_set[6]
+        "max_atoms_per_residue": DATASET_MAX_ATOMS_PER_RESIDUE,
+        "pos_class_weight": train_set[4]
     }
-    return train_set[:6], test_set[:6], param_dict  # Hide class weight
+    return train_set[:4], test_set[:4], param_dict  # Hide class weight
 
 
 def open_dataset():
@@ -90,22 +84,12 @@ def open_dataset():
         print("Computing and storing the dataset...")
         dataset = compute_entries()
         with open(DATASET_PICKLE, "wb") as f:
-            pickle.dump(dataset, f)
+            pickle.dump(dataset, f, protocol=4)
 
     return dataset
 
 
-def neighbour_list_to_matrix(neigh_list):
-    # Convert a list of tuples into a 2-element list of lists
-    l = [list(t) for t in zip(*neigh_list)]
-    # weights = 1 / np.array(l[0])
-    residues = residue_seq_to_one(l[1])
-    # Multiply each column by a vector element-wise
-    return seq_to_feat_matrix(residues) #  * weights[:, np.newaxis]
-
-
-def process_chains(ag_chain, ab_h_chain, ab_l_chain,
-                   max_cdr_len, max_ag_len):
+def process_chains(ag_chain, ab_h_chain, ab_l_chain):
     # Extract CDRs
     cdrs = {}
     cdrs.update(extract_cdrs(ab_h_chain, ["H1", "H2", "H3"]))
@@ -121,57 +105,44 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
 
     for cdr_name, cdr_chain in cdrs.items():
         contact[cdr_name] = \
-            [residue_in_contact_with(res[0][1], ag_search) for res in cdr_chain]
+            [residue_in_contact_with(res, ag_search) for res in cdr_chain]
         num_residues += len(contact[cdr_name])
         num_in_contact += sum(contact[cdr_name])
 
     # Convert to matrices
-    cdr_mats = []
-    cont_mats = []
-    cdr_masks = []
     cdr_atoms = []
+    cont_truth = []
+    cont_masks = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
         cdr_chain = cdrs[cdr_name]
 
-        neigh_feats = [neighbour_list_to_matrix(n) for n in cdr_chain]
-        cdr_mat = np.stack([m.flatten() for m in neigh_feats], axis=0)
-        cdr_mat_pad = np.zeros((max_cdr_len, NEIGHBOURHOOD_FEATURES))
-        cdr_mat_pad[:cdr_mat.shape[0], :] = cdr_mat
-        cdr_mats.append(cdr_mat_pad)
-
-        cdr_residue_list = [res[0][1] for res in cdr_chain]
-        cdr_atom_feats = residue_list_to_atom_features(cdr_residue_list, DATASET_MAX_CDR_ATOMS)
+        cdr_atom_feats = \
+            residue_list_to_atom_features(cdr_chain,
+                                          DATASET_MAX_ATOMS_PER_RESIDUE,
+                                          DATASET_MAX_CDR_ATOMS)
         cdr_atoms.append(cdr_atom_feats)
 
         cont_mat = np.array(contact[cdr_name], dtype=float)
-        cont_mat_pad = np.zeros((max_cdr_len, 1))
+        cont_mat_pad = np.zeros((DATASET_MAX_CDR_LEN, 1))
         cont_mat_pad[:cont_mat.shape[0], 0] = cont_mat
-        cont_mats.append(cont_mat_pad)
+        cont_truth.append(cont_mat_pad)
 
-        cdr_mask = np.zeros((max_cdr_len, 1), dtype=int)
+        cdr_mask = np.zeros((DATASET_MAX_CDR_LEN, 1), dtype=int)
         cdr_mask[:len(cdr_chain), 0] = 1.0
-        cdr_masks.append(cdr_mask)
+        cont_masks.append(cdr_mask)
 
-    cdrs = np.stack(cdr_mats)
-    lbls = np.stack(cont_mats)
-    masks = np.stack(cdr_masks)
     cdr_atoms = np.stack(cdr_atoms)
+    lbls = np.stack(cont_truth)
+    masks = np.stack(cont_masks)
 
-    ag_neighs = [neighbour_list_to_matrix(
-                    residue_neighbourhood(r, ag_chain, RESIDUE_NEIGHBOURS))
-                 for r in ag_chain]
-    ag_mat = np.stack([feat.flatten() for feat in ag_neighs])
-    ag_mat_pad = np.zeros((max_ag_len, NUM_AG_FEATURES))
-    ag_mat_pad[:ag_mat.shape[0], :] = ag_mat
-
-    ag_atom_feats = residue_list_to_atom_features(ag_chain, DATASET_MAX_AG_ATOMS)
+    ag_chain = filter(is_aa_residue, ag_chain)
+    ag_atom_feats = \
+        residue_list_to_atom_features(ag_chain,
+                                      DATASET_MAX_ATOMS_PER_RESIDUE,
+                                      DATASET_MAX_AG_ATOMS)
 
     # Replicate AG chain 6 times
-    ag_repl = np.resize(ag_mat_pad,
-                        (6, ag_mat_pad.shape[0], ag_mat_pad.shape[1]))
+    ag_atoms = np.resize(ag_atom_feats,
+                         (6, ag_atom_feats.shape[0], ag_atom_feats.shape[1]))
 
-    ag_atom = np.resize(ag_atom_feats,
-                        (6, ag_atom_feats.shape[0], ag_atom_feats.shape[1]))
-
-    return ag_repl, ag_atom, cdrs, cdr_atoms, lbls, masks, \
-           (num_in_contact, num_residues)
+    return ag_atoms, cdr_atoms, lbls, masks, (num_in_contact, num_residues)

@@ -4,7 +4,7 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, \
     BatchNormalization, MaxPool1D, Flatten, Activation, Reshape, Lambda
 from keras.layers.merge import concatenate, add
 import keras.backend as K
-from data_provider import NUM_CDR_FEATURES, NUM_AG_FEATURES, NUM_ATOM_FEATURES
+from data_provider import NUM_ATOM_FEATURES
 
 
 AG_RNN_STATE_SIZE = 128
@@ -37,12 +37,9 @@ class MaskingByLambda(Layer):
 
 
 # Base masking decision only on the first elements
-def ab_mask(input, mask):
-    return K.any(K.not_equal(input[:, :, :AB_RNN_STATE_SIZE], 0.0), axis=-1)
-
-
-def ag_mask(input, mask):
-    return K.any(K.not_equal(input[:, :, :AG_RNN_STATE_SIZE], 0.0), axis=-1)
+def mask_by_first(num_first):
+    return lambda input, mask: \
+        K.any(K.not_equal(input[:, :, :num_first], 0.0), axis=-1)
 
 
 # 1D convolution that supports masking by retaining the mask of the input
@@ -111,62 +108,94 @@ def loc_net(max_points, point_dim):
     return Model(inputs=input_points, outputs=transform_mat)
 
 
-def point_net(max_points, init_point_dim):
-    input_pts = Input(shape=(max_points, init_point_dim))
-    trans_pts = TNet(loc_net(max_points, init_point_dim), init_point_dim)(input_pts)
+# def point_net(max_points, init_point_dim):
+#     input_pts = Input(shape=(max_points, init_point_dim))
+#     trans_pts = TNet(loc_net(max_points, init_point_dim), init_point_dim)(input_pts)
+#
+#     # Note: Not entirely sure what PointNet authors meant here
+#     x = Convolution1D(64, 1, padding='valid', activation='elu')(trans_pts)
+#     x = Convolution1D(64, 1, padding='valid', activation='elu')(x)
+#
+#     local_fts = TNet(loc_net(max_points, 64), 64, orthog_loss=0.001)(x)
+#
+#     x = Convolution1D(64, 1, padding='valid', activation='elu')(local_fts)
+#     x = Convolution1D(128, 1, padding='valid', activation='elu')(x)
+#     x = Convolution1D(1024, 1, padding='valid', activation='elu')(x)
+#
+#     x = MaxPool1D(pool_size=max_points)(x)
+#     global_feat = Flatten()(x) # Remove the point dimension
+#
+#     return Model(inputs=input_pts, outputs=global_feat)
 
-    # Note: Not entirely sure what PointNet authors meant here
-    x = Convolution1D(64, 1, padding='valid', activation='elu')(trans_pts)
-    x = Convolution1D(64, 1, padding='valid', activation='elu')(x)
 
-    local_fts = TNet(loc_net(max_points, 64), 64, orthog_loss=0.001)(x)
-
-    x = Convolution1D(64, 1, padding='valid', activation='elu')(local_fts)
-    x = Convolution1D(128, 1, padding='valid', activation='elu')(x)
-    x = Convolution1D(1024, 1, padding='valid', activation='elu')(x)
-
-    x = MaxPool1D(pool_size=max_points)(x)
-    global_feat = Flatten()(x) # Remove the point dimension
-
-    return Model(inputs=input_pts, outputs=global_feat)
+def get_model(max_ag_atoms, max_cdr_atoms, max_atoms_per_residue, max_cdr_len):
+    # input_ag_atoms = Input(shape=(max_ag_atoms, NUM_ATOM_FEATURES))
 
 
-def get_model(max_ag_len, max_cdr_len, max_ag_atoms, max_cdr_atoms):
-    input_ag = Input(shape=(max_ag_len, NUM_AG_FEATURES))
-    input_ag_m = Masking()(input_ag)
+    # enc_ag = Bidirectional(LSTM(AG_RNN_STATE_SIZE,
+    #                             dropout=0.2,
+    #                             recurrent_dropout=0.1),
+    #                        merge_mode='concat')(input_ag_m)
+    #
+    # input_ag_atoms = Input(shape=(max_ag_atoms, NUM_ATOM_FEATURES))
+    # global_ag_feat = point_net(max_ag_atoms, NUM_ATOM_FEATURES)(input_ag_atoms)
 
-    enc_ag = Bidirectional(LSTM(AG_RNN_STATE_SIZE,
-                                dropout=0.2,
-                                recurrent_dropout=0.1),
-                           merge_mode='concat')(input_ag_m)
+    ab_pts = Input(shape=(max_cdr_atoms, NUM_ATOM_FEATURES))
+    tr_pts = TNet(loc_net(max_cdr_atoms, NUM_ATOM_FEATURES),
+                  NUM_ATOM_FEATURES, orthog_loss=0.005)(ab_pts)
 
-    input_ag_atoms = Input(shape=(max_ag_atoms, NUM_ATOM_FEATURES))
-    global_ag_feat = point_net(max_ag_atoms, NUM_ATOM_FEATURES)(input_ag_atoms)
+    tr_pts = Convolution1D(64, 1, activation='elu')(tr_pts)
+    tr_pts = Convolution1D(64, 1, activation='elu')(tr_pts)
 
-    input_ab = Input(shape=(max_cdr_len, NUM_CDR_FEATURES))
-    input_ab_m = Masking()(input_ab)
+    local_fts = TNet(loc_net(max_cdr_atoms, 64), 64, orthog_loss=0.005)(tr_pts)
+
+    fts = Convolution1D(64, 1, padding='valid', activation='elu')(local_fts)
+    fts = Convolution1D(128, 1, padding='valid', activation='elu')(fts)
+    fts = Convolution1D(1024, 1, padding='valid', activation='elu')(fts)
+
+    global_feat = MaxPool1D(pool_size=max_cdr_atoms)(fts)
+    global_feat = Flatten()(global_feat)  # Remove the point dimension
+
+    global_feat = RepeatVector(max_cdr_atoms)(global_feat)
+    all_fts = concatenate([local_fts, global_feat])
+
+    ab_fts = Convolution1D(512, 1, activation='elu')(all_fts)
+    ab_fts = Convolution1D(256, 1, activation='elu')(ab_fts)
+    ab_fts = Convolution1D(128, 1, activation='elu')(ab_fts)
+
+    res_fts = MaxPool1D(pool_size=max_atoms_per_residue,
+                        strides=max_atoms_per_residue)(all_fts)
+
+    probs = Convolution1D(1, 1, activation='sigmoid')(res_fts)
+
+    # Convolve neighbourhoods here?
+    # TODO: add RNN
+
+    # ab_net_out = Bidirectional(LSTM(AB_RNN_STATE_SIZE,
+    #                                 return_sequences=True),
+    #                            merge_mode='concat')(res_fts)
+
 
     # Adding recurrent dropout here is a bad idea
     # --- sequences are very short
-    ab_net_out = Bidirectional(LSTM(AB_RNN_STATE_SIZE,
-                                    return_sequences=True),
-                               merge_mode='concat')(input_ab_m)
+    # ab_net_out = Bidirectional(LSTM(AB_RNN_STATE_SIZE,
+    #                                 return_sequences=True),
+    #                            merge_mode='concat')(input_ab_m)
+    #
+    # input_ab_atoms = Input(shape=(max_cdr_atoms, NUM_ATOM_FEATURES))
+    # global_ab_feat = point_net(max_cdr_atoms, NUM_ATOM_FEATURES)(input_ab_atoms)
+    #
+    # feats = concatenate([enc_ag, global_ag_feat, global_ab_feat])
+    # feats = RepeatVector(max_cdr_len)(feats)
+    #
+    # ab_ag_repr = concatenate([ab_net_out, feats])
+    # ab_ag_repr = MaskingByLambda(ab_mask)(ab_ag_repr)
+    # ab_ag_repr = Dropout(0.2)(ab_ag_repr)
+    #
+    # aa_f = TimeDistributed(Dense(64, activation='elu'))(ab_ag_repr)
+    # aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(aa_f)
 
-    input_ab_atoms = Input(shape=(max_cdr_atoms, NUM_ATOM_FEATURES))
-    global_ab_feat = point_net(max_cdr_atoms, NUM_ATOM_FEATURES)(input_ab_atoms)
-
-    feats = concatenate([enc_ag, global_ag_feat, global_ab_feat])
-    feats = RepeatVector(max_cdr_len)(feats)
-
-    ab_ag_repr = concatenate([ab_net_out, feats])
-    ab_ag_repr = MaskingByLambda(ab_mask)(ab_ag_repr)
-    ab_ag_repr = Dropout(0.2)(ab_ag_repr)
-
-    aa_f = TimeDistributed(Dense(64, activation='elu'))(ab_ag_repr)
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(aa_f)
-
-    model = Model(inputs=[input_ag, input_ag_atoms, input_ab, input_ab_atoms],
-                  outputs=aa_probs)
+    model = Model(inputs=ab_pts, outputs=probs)
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',
                   metrics=['binary_accuracy', false_pos, false_neg],

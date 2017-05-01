@@ -2,7 +2,6 @@ from Bio.PDB import *
 from Bio.PDB.Model import Model
 from Bio.PDB.Structure import Structure
 from keras.utils.np_utils import to_categorical
-from heapq import *
 import numpy as np
 
 # Config constants
@@ -12,13 +11,9 @@ CONTACT_DISTANCE = 4.5 # Contact distance between atoms in Angstroms
 chothia_cdr_def = { "L1" : (24, 34), "L2" : (50, 56), "L3" : (89, 97),
                     "H1" : (26, 32), "H2" : (52, 56), "H3" : (95, 102) }
 
-aa_s = "CSTPAGNDEQHRKMILVFYWU" # U for unknown
+aa_s = "CSTPAGNDEQHRKMILVFYW" # U for unknown
 
 NUM_AA_FEATURES = len(aa_s) + 7 # one-hot + extra features
-RESIDUE_NEIGHBOURS = 6
-NEIGHBOURHOOD_FEATURES = NUM_AA_FEATURES * (RESIDUE_NEIGHBOURS + 1)
-NUM_CDR_FEATURES = NEIGHBOURHOOD_FEATURES
-NUM_AG_FEATURES = NEIGHBOURHOOD_FEATURES
 NUM_ATOM_FEATURES = 3 + NUM_AA_FEATURES  # coords + AA-level features
 
 
@@ -31,15 +26,17 @@ def extract_cdrs(chain, cdr_names):
             cdr_low, cdr_hi = chothia_cdr_def[cdr_name]
             cdr_range = range(-NUM_EXTRA_RESIDUES + cdr_low, cdr_hi +
                               NUM_EXTRA_RESIDUES + 1)
-            if res.id[1] in cdr_range:
-                n_hood = residue_neighbourhood(res, chain, RESIDUE_NEIGHBOURS)
-                cdrs[cdr_name].append(n_hood)
+            if res.id[1] in cdr_range and is_aa_residue(res):
+                cdrs[cdr_name].append(res)
     return cdrs
 
 
+def is_aa_residue(res):
+    return res.resname in Polypeptide.standard_aa_names
+
+
 def residue_to_one(r):
-    return Polypeptide.three_to_one(r.resname) \
-           if r.resname in Polypeptide.standard_aa_names else 'U'
+    return Polypeptide.three_to_one(r.resname) if is_aa_residue(r) else 'U'
 
 
 def residue_seq_to_one(seq):
@@ -106,60 +103,26 @@ def aa_features():
     return np.array(prop1)
 
 
-def seq_to_feat_matrix(res_seq_one):
-    ints = one_to_number(res_seq_one)
+def residue_seq_to_feat_matrix(residues):
+    ints = one_to_number(residue_seq_to_one(residues))
     feats = aa_features()[ints]
     onehot = to_categorical(ints, num_classes=len(aa_s))
     return np.concatenate((onehot, feats), axis=1)
 
 
-def residue_list_to_atom_features(residues, max_len):
-    atom_coords = [a.coord for r in residues for a in r]
-    coord_mat = np.stack(atom_coords)
+def residue_list_to_atom_features(residues, max_atoms_per_res, max_num_atoms):
+    features = np.zeros((max_num_atoms, NUM_ATOM_FEATURES))
 
-    atom_residues = [residue_to_one(r) for r in residues for _ in r]
-    res_features = seq_to_feat_matrix(atom_residues)
+    for i, res in enumerate(residues):
+        atom_feats = np.stack([atom.coord for atom in res])
 
-    feat_mat_pad = np.zeros((max_len, NUM_ATOM_FEATURES))
-    feat_mat_pad[:coord_mat.shape[0], :3] = coord_mat
-    feat_mat_pad[:res_features.shape[0], 3:] = res_features
+        start_idx = max_atoms_per_res * i
+        features[start_idx : start_idx + atom_feats.shape[0], :3] = atom_feats
 
-    return feat_mat_pad
+        res_feats = residue_seq_to_feat_matrix([res for _ in res])
+        features[start_idx : start_idx + res_feats.shape[0], 3:] = res_feats
 
-
-def residue_distance(r1, r2):
-    # TODO: maybe not the best idea to take any atom?
-    r1_atom = r1["CA"] if "CA" in r1 else r1.child_list[0]
-    r2_atom = r2["CA"] if "CA" in r2 else r2.child_list[0]
-    return r1_atom - r2_atom
-
-
-class DistResiduePair(tuple):
-    def __cmp__(self, other):
-        return self[0] > other[0]
-
-    def __lt__(self, other):
-        return self.__cmp__(other)
-
-
-def residue_neighbourhood(origin_res, chain, num_neighbours):
-    neighbours = []
-    for r in chain.get_residues():
-        if r == origin_res: continue
-        if "CA" not in r: continue  # Skip HOH and such
-
-        r_pair = DistResiduePair((residue_distance(origin_res, r), r))
-        if len(neighbours) == num_neighbours:
-            if neighbours[0] < r_pair:  # == r_pair has lower distance
-                heapreplace(neighbours, r_pair)
-        else:
-            heappush(neighbours, r_pair)
-
-    result = []
-    while len(neighbours) > 0:
-        result.append(heappop(neighbours))
-    result.append((1.0, origin_res))
-    return result[::-1]
+    return features
 
 
 def atom_in_contact_with_chain(a, c):

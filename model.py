@@ -140,31 +140,58 @@ def get_model(max_ag_atoms, max_cdr_atoms, max_atoms_per_residue, max_cdr_len):
     # input_ag_atoms = Input(shape=(max_ag_atoms, NUM_ATOM_FEATURES))
     # global_ag_feat = point_net(max_ag_atoms, NUM_ATOM_FEATURES)(input_ag_atoms)
 
+    # Local CDR features
+
     ab_pts = Input(shape=(max_cdr_atoms, NUM_ATOM_FEATURES))
-    tr_pts = TNet(loc_net(max_cdr_atoms, NUM_ATOM_FEATURES),
-                  NUM_ATOM_FEATURES, orthog_loss=0.005)(ab_pts)
+    ab_tr_pts = TNet(loc_net(max_cdr_atoms, NUM_ATOM_FEATURES),
+                    NUM_ATOM_FEATURES, orthog_loss=0.001)(ab_pts)
 
-    tr_pts = Convolution1D(64, 1, activation='elu')(tr_pts)
-    tr_pts = Convolution1D(64, 1, activation='elu')(tr_pts)
+    ab_tr_pts = Convolution1D(64, 1, activation='elu')(ab_tr_pts)
+    ab_tr_pts = Convolution1D(64, 1, activation='elu')(ab_tr_pts)
 
-    local_fts = TNet(loc_net(max_cdr_atoms, 64), 64, orthog_loss=0.005)(tr_pts)
+    ab_local_fts = TNet(loc_net(max_cdr_atoms, 64),
+                        64, orthog_loss=0.001)(ab_tr_pts)
 
-    fts = Convolution1D(64, 1, padding='valid', activation='elu')(local_fts)
-    fts = Convolution1D(128, 1, padding='valid', activation='elu')(fts)
-    fts = Convolution1D(1024, 1, padding='valid', activation='elu')(fts)
+    # Compute global CDR feature
 
-    global_feat = MaxPool1D(pool_size=max_cdr_atoms)(fts)
-    global_feat = Flatten()(global_feat)  # Remove the point dimension
-
-    global_feat = RepeatVector(max_cdr_atoms)(global_feat)
-    all_fts = concatenate([local_fts, global_feat])
-
-    ab_fts = Convolution1D(512, 1, activation='elu')(all_fts)
-    ab_fts = Convolution1D(256, 1, activation='elu')(ab_fts)
+    ab_fts = Convolution1D(64, 1, activation='elu')(ab_local_fts)
     ab_fts = Convolution1D(128, 1, activation='elu')(ab_fts)
+    ab_fts = Convolution1D(1024, 1, activation='elu')(ab_fts)
+
+    ab_global_feat = MaxPool1D(pool_size=max_cdr_atoms)(ab_fts)
+    ab_global_feat = Flatten()(ab_global_feat)  # Remove the point dimension
+    ab_global_feat = RepeatVector(max_cdr_atoms)(ab_global_feat)
+
+    # Local AG features
+
+    ag_pts = Input(shape=(max_ag_atoms, NUM_ATOM_FEATURES))
+    ag_tr_pts = TNet(loc_net(max_ag_atoms, NUM_ATOM_FEATURES),
+                     NUM_ATOM_FEATURES, orthog_loss=0.001)(ag_pts)
+
+    ag_tr_pts = Convolution1D(64, 1, activation='elu')(ag_tr_pts)
+    ag_tr_pts = Convolution1D(64, 1, activation='elu')(ag_tr_pts)
+
+    ag_local_fts = TNet(loc_net(max_ag_atoms, 64),
+                        64, orthog_loss=0.001)(ag_tr_pts)
+
+    # Global AG feature
+    ag_fts = Convolution1D(64, 1, activation='elu')(ag_local_fts)
+    ag_fts = Convolution1D(128, 1, activation='elu')(ag_fts)
+    ag_fts = Convolution1D(1024, 1, activation='elu')(ag_fts)
+
+    ag_global_feat = MaxPool1D(pool_size=max_ag_atoms)(ag_fts)
+    ag_global_feat = Flatten()(ag_global_feat)  # Remove the point dimension
+    ag_global_feat = RepeatVector(max_cdr_atoms)(ag_global_feat)
+
+    # CDR residue probabilities
+    all_fts = concatenate([ab_local_fts, ab_global_feat, ag_global_feat])
+
+    fts = Convolution1D(512, 1, activation='elu')(all_fts)
+    fts = Convolution1D(256, 1, activation='elu')(fts)
+    fts = Convolution1D(128, 1, activation='elu')(fts)
 
     res_fts = MaxPool1D(pool_size=max_atoms_per_residue,
-                        strides=max_atoms_per_residue)(all_fts)
+                        strides=max_atoms_per_residue)(fts)
 
     probs = Convolution1D(1, 1, activation='sigmoid')(res_fts)
 
@@ -195,7 +222,7 @@ def get_model(max_ag_atoms, max_cdr_atoms, max_atoms_per_residue, max_cdr_len):
     # aa_f = TimeDistributed(Dense(64, activation='elu'))(ab_ag_repr)
     # aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(aa_f)
 
-    model = Model(inputs=ab_pts, outputs=probs)
+    model = Model(inputs=[ag_pts, ab_pts], outputs=probs)
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',
                   metrics=['binary_accuracy', false_pos, false_neg],

@@ -30,15 +30,15 @@ def main():
 
     ags_atoms_train, cdr_atoms_train, lbls_train, mask_train = train_set
     ags_atoms_test, cdr_atoms_test, lbls_test, mask_test = test_set
-    example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
+    example_weight = np.squeeze((lbls_train * -0.1 + 1) * mask_train)
 
-    history = model.fit(cdr_atoms_train,
+    history = model.fit([ags_atoms_train, cdr_atoms_train],
                         lbls_train, batch_size=32,
                         epochs=40, validation_split=0.1,
                         sample_weight=example_weight)
 
     model.save_weights("current.h5")
-    probs_test = model.predict(cdr_atoms_test)
+    probs_test = model.predict([ags_atoms_test, cdr_atoms_test])
 
     test_seq_lens = np.sum(np.squeeze(mask_test), axis=1)
     probs_flat = flatten_with_lengths(probs_test, test_seq_lens)

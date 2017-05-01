@@ -104,16 +104,6 @@ def neighbour_list_to_matrix(neigh_list):
     return seq_to_feat_matrix(residues) #  * weights[:, np.newaxis]
 
 
-def atom_list_to_feat_seq(atoms, max_len):
-    atom_coords = [a.coord for a in atoms]
-    coord_mat = np.stack(atom_coords)
-
-    coord_mat_pad = np.zeros((max_len, 3))
-    coord_mat_pad[:coord_mat.shape[0], :] = coord_mat
-
-    return coord_mat_pad
-
-
 def process_chains(ag_chain, ab_h_chain, ab_l_chain,
                    max_cdr_len, max_ag_len):
     # Extract CDRs
@@ -149,8 +139,8 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
         cdr_mat_pad[:cdr_mat.shape[0], :] = cdr_mat
         cdr_mats.append(cdr_mat_pad)
 
-        cdr_atom_list = [atom for res in cdr_chain for atom in res[0][1]]
-        cdr_atom_feats = atom_list_to_feat_seq(cdr_atom_list, DATASET_MAX_CDR_ATOMS)
+        cdr_residue_list = [res[0][1] for res in cdr_chain]
+        cdr_atom_feats = residue_list_to_atom_features(cdr_residue_list, DATASET_MAX_CDR_ATOMS)
         cdr_atoms.append(cdr_atom_feats)
 
         cont_mat = np.array(contact[cdr_name], dtype=float)
@@ -174,7 +164,7 @@ def process_chains(ag_chain, ab_h_chain, ab_l_chain,
     ag_mat_pad = np.zeros((max_ag_len, NUM_AG_FEATURES))
     ag_mat_pad[:ag_mat.shape[0], :] = ag_mat
 
-    ag_atom_feats = atom_list_to_feat_seq(ag_atom_list, DATASET_MAX_AG_ATOMS)
+    ag_atom_feats = residue_list_to_atom_features(ag_chain, DATASET_MAX_AG_ATOMS)
 
     # Replicate AG chain 6 times
     ag_repl = np.resize(ag_mat_pad,

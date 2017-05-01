@@ -113,6 +113,20 @@ def seq_to_feat_matrix(res_seq_one):
     return np.concatenate((onehot, feats), axis=1)
 
 
+def residue_list_to_atom_features(residues, max_len):
+    atom_coords = [a.coord for r in residues for a in r]
+    coord_mat = np.stack(atom_coords)
+
+    atom_residues = [residue_to_one(r) for r in residues for _ in r]
+    res_features = seq_to_feat_matrix(atom_residues)
+
+    feat_mat_pad = np.zeros((max_len, NUM_ATOM_FEATURES))
+    feat_mat_pad[:coord_mat.shape[0], :3] = coord_mat
+    feat_mat_pad[:res_features.shape[0], 3:] = res_features
+
+    return feat_mat_pad
+
+
 def residue_distance(r1, r2):
     # TODO: maybe not the best idea to take any atom?
     r1_atom = r1["CA"] if "CA" in r1 else r1.child_list[0]

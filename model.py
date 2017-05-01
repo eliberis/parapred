@@ -4,7 +4,7 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, \
     BatchNormalization, MaxPool1D, Flatten, Activation, Reshape, Lambda
 from keras.layers.merge import concatenate, add
 import keras.backend as K
-from data_provider import NUM_CDR_FEATURES, NUM_AG_FEATURES
+from data_provider import NUM_CDR_FEATURES, NUM_AG_FEATURES, NUM_ATOM_FEATURES
 
 
 AG_RNN_STATE_SIZE = 128
@@ -111,9 +111,9 @@ def loc_net(max_points, point_dim):
     return Model(inputs=input_points, outputs=transform_mat)
 
 
-def point_net(max_points):
-    input_pts = Input(shape=(max_points, 3))
-    trans_pts = TNet(loc_net(max_points, 3), 3)(input_pts)
+def point_net(max_points, init_point_dim):
+    input_pts = Input(shape=(max_points, init_point_dim))
+    trans_pts = TNet(loc_net(max_points, init_point_dim), init_point_dim)(input_pts)
 
     # Note: Not entirely sure what PointNet authors meant here
     x = Convolution1D(64, 1, padding='valid', activation='elu')(trans_pts)
@@ -140,8 +140,8 @@ def get_model(max_ag_len, max_cdr_len, max_ag_atoms, max_cdr_atoms):
                                 recurrent_dropout=0.1),
                            merge_mode='concat')(input_ag_m)
 
-    input_ag_atoms = Input(shape=(max_ag_atoms, 3))
-    global_ag_feat = point_net(max_ag_atoms)(input_ag_atoms)
+    input_ag_atoms = Input(shape=(max_ag_atoms, NUM_ATOM_FEATURES))
+    global_ag_feat = point_net(max_ag_atoms, NUM_ATOM_FEATURES)(input_ag_atoms)
 
     input_ab = Input(shape=(max_cdr_len, NUM_CDR_FEATURES))
     input_ab_m = Masking()(input_ab)
@@ -152,8 +152,8 @@ def get_model(max_ag_len, max_cdr_len, max_ag_atoms, max_cdr_atoms):
                                     return_sequences=True),
                                merge_mode='concat')(input_ab_m)
 
-    input_ab_atoms = Input(shape=(max_cdr_atoms, 3))
-    global_ab_feat = point_net(max_cdr_atoms)(input_ab_atoms)
+    input_ab_atoms = Input(shape=(max_cdr_atoms, NUM_ATOM_FEATURES))
+    global_ab_feat = point_net(max_cdr_atoms, NUM_ATOM_FEATURES)(input_ab_atoms)
 
     feats = concatenate([enc_ag, global_ag_feat, global_ab_feat])
     feats = RepeatVector(max_cdr_len)(feats)

@@ -193,7 +193,9 @@ def get_model(max_ag_atoms, max_cdr_atoms, max_atoms_per_residue, max_cdr_len):
     res_fts = MaxPool1D(pool_size=max_atoms_per_residue,
                         strides=max_atoms_per_residue)(fts)
 
-    probs = Convolution1D(1, 1, activation='sigmoid')(res_fts)
+    neigh_fts = Convolution1D(128, 3, padding='same')(res_fts)
+
+    probs = Convolution1D(1, 1, activation='sigmoid')(neigh_fts)
 
     # Convolve neighbourhoods here?
     # TODO: add RNN

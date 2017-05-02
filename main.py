@@ -28,13 +28,14 @@ def main():
     ags_test, cdrs_test, lbls_test, mask_test = test_set
     example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
 
-    history = model.fit([ags_train, cdrs_train], lbls_train,
+    history = model.fit([ags_train, cdrs_train, np.squeeze(mask_train)],
+                        lbls_train,
                         batch_size=32, epochs=15,
                         sample_weight=example_weight)
 
     model.save_weights("abip-sets.h5")
 
-    probs_test = model.predict([ags_test, cdrs_test])
+    probs_test = model.predict([ags_test, cdrs_test, np.squeeze(mask_test)])
 
     test_seq_lens = np.sum(np.squeeze(mask_test), axis=1)
     probs_flat = flatten_with_lengths(probs_test, test_seq_lens)

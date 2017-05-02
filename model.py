@@ -38,6 +38,10 @@ def mask(input, mask):
     return K.any(K.not_equal(input[:, :, :(2*RNN_STATE_SIZE)], 0.0), axis=-1)
 
 
+def mask_by_input(tensor):
+    return lambda input, mask: tensor
+
+
 # 1D convolution that supports masking by retaining the mask of the input
 class MaskedConvolution1D(Convolution1D):
     def __init__(self, *args, **kwargs):
@@ -70,6 +74,8 @@ def get_model(max_ag_len, max_cdr_len):
     input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
     input_ab_m = Masking()(input_ab)
 
+    label_mask = Input(shape=(max_cdr_len,))
+
     # Adding dropout_U here is a bad idea --- sequences are very short and
     # all information is essential
     ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
@@ -77,11 +83,11 @@ def get_model(max_ag_len, max_cdr_len):
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
     ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])
-    ab_ag_repr = MaskingByLambda(mask)(ab_ag_repr)
+    ab_ag_repr = MaskingByLambda(mask_by_input(label_mask))(ab_ag_repr)
     ab_ag_repr = Dropout(0.1)(ab_ag_repr)
 
     aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
-    model = Model(inputs=[input_ag, input_ab], outputs=aa_probs)
+    model = Model(inputs=[input_ag, input_ab, label_mask], outputs=aa_probs)
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',
                   metrics=['binary_accuracy', false_pos, false_neg],

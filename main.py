@@ -3,15 +3,16 @@ from structure_processor import *
 from evaluation import *
 from model import *
 from plotting import *
+from keras.callbacks import LearningRateScheduler
 import numpy as np
 
 
 def main():
     train_set, test_set, params = open_dataset()
-    kfold_cv_eval(
-        lambda: get_model(params["max_ag_len"], params["max_cdr_len"]),
-        combine_datasets(train_set, test_set))
-    return
+    # kfold_cv_eval(
+    #     lambda: get_model(params["max_ag_len"], params["max_cdr_len"]),
+    #     combine_datasets(train_set, test_set))
+    # return
 
     max_ag_len = params["max_ag_len"]
     max_cdr_len = params["max_cdr_len"]
@@ -28,10 +29,15 @@ def main():
     ags_test, cdrs_test, lbls_test, mask_test = test_set
     example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
 
+    rate_schedule = lambda e: \
+        0.00005 if e >= 20 else \
+            (0.0001 if e >= 15 else (0.001 if e >= 5 else 0.01))
+
     history = model.fit([ags_train, cdrs_train, np.squeeze(mask_train)],
-                        lbls_train,
-                        batch_size=32, epochs=15,
-                        sample_weight=example_weight)
+                        lbls_train, validation_split=0.15,
+                        batch_size=32, epochs=25,
+                        sample_weight=example_weight,
+                        callbacks=[LearningRateScheduler(rate_schedule)])
 
     model.save_weights("abip-sets.h5")
 

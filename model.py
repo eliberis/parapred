@@ -72,14 +72,16 @@ def get_model(max_ag_len, max_cdr_len):
                            merge_mode='concat')(input_ag_m2)
 
     input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
-    input_ab_m = Masking()(input_ab)
+
+    ab_fts = Convolution1D(32, 1, activation='elu')(input_ab)
+    ab_seq = Masking()(ab_fts)
 
     label_mask = Input(shape=(max_cdr_len,))
 
     # Adding dropout_U here is a bad idea --- sequences are very short and
     # all information is essential
     ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
-                               merge_mode='concat')(input_ab_m)
+                               merge_mode='concat')(ab_seq)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
     ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])

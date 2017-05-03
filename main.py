@@ -5,7 +5,7 @@ from model import *
 from plotting import *
 from keras.callbacks import LearningRateScheduler
 import numpy as np
-
+from math import exp
 
 def main():
     train_set, test_set, params = open_dataset()
@@ -29,9 +29,7 @@ def main():
     ags_test, cdrs_test, lbls_test, mask_test = test_set
     example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
 
-    rate_schedule = lambda e: \
-        0.00005 if e >= 20 else \
-            (0.0001 if e >= 15 else (0.001 if e >= 5 else 0.01))
+    rate_schedule = lambda e: 0.0001 if e >= 15 else (0.001 if e >= 5 else 0.01)
 
     history = model.fit([ags_train, cdrs_train, np.squeeze(mask_train)],
                         lbls_train, validation_split=0.15,

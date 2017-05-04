@@ -4,6 +4,7 @@ from evaluation import *
 from model import *
 from plotting import *
 import numpy as np
+from keras.callbacks import LearningRateScheduler
 
 
 def main():
@@ -32,11 +33,14 @@ def main():
     ags_atoms_test, cdr_atoms_test, lbls_test, mask_test = test_set
     example_weight = np.squeeze((lbls_train * 1.7 + 1) * mask_train)
 
+    rate_schedule = lambda e: 0.001
+
     history = model.fit([ags_atoms_train, cdr_atoms_train,
                          np.squeeze(mask_train)],
                         lbls_train, batch_size=32,
-                        epochs=40, validation_split=0.1,
-                        sample_weight=example_weight)
+                        epochs=40, validation_split=0.15,
+                        sample_weight=example_weight,
+                        callbacks=[LearningRateScheduler(rate_schedule)])
 
     model.save_weights("current.h5")
     probs_test = model.predict([ags_atoms_test, cdr_atoms_test, mask_test])

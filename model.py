@@ -198,10 +198,14 @@ def get_model(max_ag_atoms, max_cdr_atoms, max_atoms_per_residue, max_cdr_len):
                         strides=max_atoms_per_residue)(fts)
 
     neigh_fts = Convolution1D(128, 3, padding='same')(res_fts)
-    probs = Convolution1D(1, 1, activation='sigmoid')(neigh_fts)
+    # probs = Convolution1D(1, 1, activation='sigmoid')(neigh_fts)
 
     label_mask = Input(shape=(max_cdr_len, ))
-    probs_m = MaskingByLambda(mask_by_input(label_mask))(probs)
+    fts_m = MaskingByLambda(mask_by_input(label_mask))(neigh_fts)
+
+    ab_net_out = Bidirectional(LSTM(64, return_sequences=True),
+                               merge_mode='concat')(fts_m)
+    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_net_out)
 
     # Convolve neighbourhoods here?
     # TODO: add RNN
@@ -230,7 +234,7 @@ def get_model(max_ag_atoms, max_cdr_atoms, max_atoms_per_residue, max_cdr_len):
     # aa_f = TimeDistributed(Dense(64, activation='elu'))(ab_ag_repr)
     # aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(aa_f)
 
-    model = Model(inputs=[ag_pts, ab_pts, label_mask], outputs=probs_m)
+    model = Model(inputs=[ag_pts, ab_pts, label_mask], outputs=aa_probs)
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',
                   metrics=['binary_accuracy', false_pos, false_neg],

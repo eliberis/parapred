@@ -61,15 +61,16 @@ class MaskedConvolution1D(Convolution1D):
 
 def get_model(max_ag_len, max_cdr_len):
     input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
-    input_ag_m = Masking()(input_ag)
+    ag_fts = Convolution1D(32, 1, activation='elu')(input_ag)
+    ag_seq = Masking()(ag_fts)
 
-    input_ag_conv = MaskedConvolution1D(CONV_FILTERS, CONV_FILTER_SPAN,
-                                        padding='same')(input_ag_m)
-    input_ag_m2 = Masking()(input_ag_conv) # Probably unnecessary, investigate
+    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_seq)
+    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
+    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
 
     enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE, dropout=0.1,
                                 recurrent_dropout=0.1),
-                           merge_mode='concat')(input_ag_m2)
+                           merge_mode='concat')(ag_neigh_fts)
 
     input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
 

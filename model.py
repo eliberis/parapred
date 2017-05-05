@@ -3,7 +3,7 @@ from keras.layers import Layer, Bidirectional, TimeDistributed, \
     Dense, LSTM, Masking, Input, RepeatVector, Dropout, Convolution1D
 from keras.layers.merge import concatenate, add
 import keras.backend as K
-from data_provider import NUM_CDR_FEATURES, NUM_AG_FEATURES
+from data_provider import NUM_AA_FEATURES, NEIGHBOURHOOD_SIZE, NUM_EDGE_FEATURES
 
 
 def false_neg(y_true, y_pred):
@@ -56,29 +56,48 @@ class MaskedConvolution1D(Convolution1D):
 
 
 def get_model(max_ag_len, max_cdr_len):
-    input_ag = Input(shape=(max_ag_len, NUM_AG_FEATURES))
-    input_ag_m = Masking()(input_ag)
+    nsize_sq = NEIGHBOURHOOD_SIZE ** 2
 
-    enc_ag = Bidirectional(LSTM(128, dropout=0.1, recurrent_dropout=0.1),
-                           merge_mode='concat')(input_ag_m)
+    ag = Input(shape=(max_ag_len * NEIGHBOURHOOD_SIZE, NUM_AA_FEATURES))
+    ag_edges = Input(shape=(max_ag_len * nsize_sq, NUM_EDGE_FEATURES))
 
-    input_ab = Input(shape=(max_cdr_len, NUM_CDR_FEATURES))
-    input_ab_m = Masking()(input_ab)
+    ag_fts = Convolution1D(128, NEIGHBOURHOOD_SIZE,
+                           strides=NEIGHBOURHOOD_SIZE,
+                           activation='elu')(ag)
+    ag_edge_fts = Convolution1D(4, nsize_sq, strides=nsize_sq)(ag_edges)
 
-    # Adding recurrent dropout here is a bad idea
-    # --- sequences are very short
-    label_mask = Input(shape=(max_cdr_len,))
+    ag_all_fts = concatenate([ag_fts, ag_edge_fts])
+    ag_fts_m = Masking()(ag_all_fts)
+
+    enc_ag = Bidirectional(LSTM(128,
+                                dropout=0.2,
+                                recurrent_dropout=0.1),
+                           merge_mode='concat')(ag_fts_m)
+
+    cdr = Input(shape=(max_cdr_len * NEIGHBOURHOOD_SIZE, NUM_AA_FEATURES))
+    cdr_edges = Input(shape=(max_cdr_len * nsize_sq, NUM_EDGE_FEATURES))
+
+    cdr_fts = Convolution1D(128, NEIGHBOURHOOD_SIZE,
+                            strides=NEIGHBOURHOOD_SIZE,
+                            activation='elu')(cdr)
+    cdr_edge_fts = Convolution1D(4, nsize_sq, strides=nsize_sq)(cdr_edges)
+
+    cdr_all_fts = concatenate([cdr_fts, cdr_edge_fts])
+    cdr_fts_m = Masking()(cdr_all_fts)
 
     ab_net_out = Bidirectional(LSTM(128, return_sequences=True),
-                               merge_mode='concat')(input_ab_m)
+                               merge_mode='concat')(cdr_fts_m)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
     ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])
-    ab_ag_repr = MaskingByLambda(mask_by_input(label_mask))(ab_ag_repr)
     ab_ag_repr = Dropout(0.1)(ab_ag_repr)
 
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
-    model = Model(inputs=[input_ag, input_ab, label_mask], outputs=aa_probs)
+    label_mask = Input(shape=(max_cdr_len,))
+    ab_ag_repr_m = MaskingByLambda(mask_by_input(label_mask))(ab_ag_repr)
+
+    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr_m)
+    model = Model(inputs=[ag, ag_edges, cdr, cdr_edges, label_mask], outputs=aa_probs)
+
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',
                   metrics=['binary_accuracy', false_pos, false_neg],

@@ -21,21 +21,23 @@ def single_run():
     model = get_model(params["max_ag_len"], params["max_cdr_len"])
     print(model.summary())
 
-    ags_train, cdrs_train, lbls_train, mask_train = train_set
-    ags_test, cdrs_test, lbls_test, mask_test = test_set
+    ags_train, ags_edges_train, cdrs_train, cdr_edges_train, lbls_train, mask_train = train_set
+    ags_test, ags_edges_test, cdrs_test, cdr_edges_test, lbls_test, mask_test = test_set
+
     example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
 
-    rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
+    rate_schedule = lambda e: 0.001 if e >= 7 else 0.01
 
-    history = model.fit([ags_train, cdrs_train, np.squeeze(mask_train)],
+    history = model.fit([ags_train, ags_edges_train, cdrs_train,
+                         cdr_edges_train, np.squeeze(mask_train)],
                         lbls_train, validation_split=0.15,
-                        batch_size=32, epochs=30,
+                        batch_size=32, epochs=100,
                         sample_weight=example_weight,
                         callbacks=[LearningRateScheduler(rate_schedule)])
 
-    model.save_weights("abip-sets.h5")
-
-    probs_test = model.predict([ags_test, cdrs_test, np.squeeze(mask_test)])
+    model.save_weights("current.h5")
+    probs_test = model.predict([ags_test, ags_edges_test, cdrs_test,
+                                cdr_edges_train, np.squeeze(mask_test)])
 
     test_seq_lens = np.sum(np.squeeze(mask_test), axis=1)
     probs_flat = flatten_with_lengths(probs_test, test_seq_lens)

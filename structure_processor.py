@@ -12,33 +12,34 @@ CONTACT_DISTANCE = 4.5 # Contact distance between atoms in Angstroms
 chothia_cdr_def = { "L1" : (24, 34), "L2" : (50, 56), "L3" : (89, 97),
                     "H1" : (26, 32), "H2" : (52, 56), "H3" : (95, 102) }
 
-aa_s = "CSTPAGNDEQHRKMILVFYWU" # U for unknown
+aa_s = "CSTPAGNDEQHRKMILVFYW" # U for unknown
 
 NUM_AA_FEATURES = len(aa_s) + 7 # one-hot + extra features
-RESIDUE_NEIGHBOURS = 6
-NEIGHBOURHOOD_FEATURES = NUM_AA_FEATURES * (RESIDUE_NEIGHBOURS + 1)
-NUM_CDR_FEATURES = NEIGHBOURHOOD_FEATURES
-NUM_AG_FEATURES = NEIGHBOURHOOD_FEATURES
+NUM_EDGE_FEATURES = 1 # Distance
+NEIGHBOURHOOD_SIZE = 7
 
 
 # TODO: Could optimise a bit, but not important
 def extract_cdrs(chain, cdr_names):
     cdrs = { name : [] for name in cdr_names }
-    for res in chain.get_unpacked_list():
+    for res in chain:
         # Does this residue belong to any of the CDRs?
         for cdr_name in cdrs:
             cdr_low, cdr_hi = chothia_cdr_def[cdr_name]
             cdr_range = range(-NUM_EXTRA_RESIDUES + cdr_low, cdr_hi +
                               NUM_EXTRA_RESIDUES + 1)
-            if res.id[1] in cdr_range:
-                n_hood = residue_neighbourhood(res, chain, RESIDUE_NEIGHBOURS)
+            if res.id[1] in cdr_range and is_aa_residue(res):
+                n_hood = residue_neighbourhood(res, chain, NEIGHBOURHOOD_SIZE)
                 cdrs[cdr_name].append(n_hood)
     return cdrs
 
 
+def is_aa_residue(r):
+    return r.resname in Polypeptide.standard_aa_names
+
+
 def residue_to_one(r):
-    return Polypeptide.three_to_one(r.resname) \
-           if r.resname in Polypeptide.standard_aa_names else 'U'
+    return Polypeptide.three_to_one(r.resname)
 
 
 def residue_seq_to_one(seq):
@@ -127,11 +128,12 @@ class DistResiduePair(tuple):
         return self.__cmp__(other)
 
 
-def residue_neighbourhood(origin_res, chain, num_neighbours):
+def residue_neighbourhood(origin_res, chain, neighbourhood_size):
+    num_neighbours = neighbourhood_size - 1
     neighbours = []
-    for r in chain.get_residues():
-        if r == origin_res: continue
-        if "CA" not in r: continue  # Skip HOH and such
+    for r in chain:
+        if r == origin_res:
+            continue
 
         r_pair = DistResiduePair((residue_distance(origin_res, r), r))
         if len(neighbours) == num_neighbours:
@@ -142,8 +144,8 @@ def residue_neighbourhood(origin_res, chain, num_neighbours):
 
     result = []
     while len(neighbours) > 0:
-        result.append(heappop(neighbours))
-    result.append((1.0, origin_res))
+        result.append(heappop(neighbours)[1])
+    result.append(origin_res)
     return result[::-1]
 
 
@@ -160,6 +162,20 @@ def residue_in_contact_with(res, c_search, dist=CONTACT_DISTANCE):
                for a in res.get_unpacked_list())
 
 
+def neighbour_list_to_feat_matrices(neigh_list):
+    # Compute weight matrix
+    weights = np.zeros((NEIGHBOURHOOD_SIZE, NEIGHBOURHOOD_SIZE, NUM_EDGE_FEATURES))
+    for i in range(len(neigh_list)):
+        for j in range(i+1, len(neigh_list)):
+            dist = residue_distance(neigh_list[i], neigh_list[j])
+            weights[i, j, 0] = dist
+            weights[j, i, 0] = dist
+
+    res_fts = seq_to_feat_matrix(residue_seq_to_one(neigh_list))
+    # Multiply each column by a vector element-wise
+    return res_fts, weights.reshape(-1, NUM_EDGE_FEATURES)
+
+
 def annotate_chain_with_prob(c, cdr_names, probs):
     for a in c.get_atoms():
         a.set_bfactor(0)
@@ -171,7 +187,7 @@ def annotate_chain_with_prob(c, cdr_names, probs):
 
         j = 0
         for res in c.get_residues():
-            if not res.id[1] in cdr_range:
+            if not res.id[1] in cdr_range or not is_aa_residue(res):
                 continue
 
             p = probs[i, j][0]

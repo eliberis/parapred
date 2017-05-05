@@ -26,12 +26,12 @@ def single_run():
 
     example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
 
-    rate_schedule = lambda e: 0.001 if e >= 7 else 0.01
+    rate_schedule = lambda e: 0.001 if e >= 3 else 0.01
 
     history = model.fit([ags_train, ags_edges_train, cdrs_train,
                          cdr_edges_train, np.squeeze(mask_train)],
-                        lbls_train, validation_split=0.15,
-                        batch_size=32, epochs=100,
+                        lbls_train,
+                        batch_size=32, epochs=60,
                         sample_weight=example_weight,
                         callbacks=[LearningRateScheduler(rate_schedule)])
 

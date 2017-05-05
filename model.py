@@ -61,12 +61,15 @@ def get_model(max_ag_len, max_cdr_len):
     ag = Input(shape=(max_ag_len * NEIGHBOURHOOD_SIZE, NUM_AA_FEATURES))
     ag_edges = Input(shape=(max_ag_len * nsize_sq, NUM_EDGE_FEATURES))
 
-    ag_fts = Convolution1D(128, NEIGHBOURHOOD_SIZE,
+    ag_fts = Convolution1D(64, NEIGHBOURHOOD_SIZE,
                            strides=NEIGHBOURHOOD_SIZE,
                            activation='elu')(ag)
-    ag_edge_fts = Convolution1D(4, nsize_sq, strides=nsize_sq)(ag_edges)
+    ag_edge_fts = Convolution1D(16, nsize_sq, strides=nsize_sq)(ag_edges)
 
     ag_all_fts = concatenate([ag_fts, ag_edge_fts])
+    ag_all_fts = Dropout(0.15)(ag_all_fts)
+    ag_all_fts = Convolution1D(64, 1, activation='elu')(ag_all_fts)
+
     ag_fts_m = Masking()(ag_all_fts)
 
     enc_ag = Bidirectional(LSTM(128,
@@ -77,12 +80,13 @@ def get_model(max_ag_len, max_cdr_len):
     cdr = Input(shape=(max_cdr_len * NEIGHBOURHOOD_SIZE, NUM_AA_FEATURES))
     cdr_edges = Input(shape=(max_cdr_len * nsize_sq, NUM_EDGE_FEATURES))
 
-    cdr_fts = Convolution1D(128, NEIGHBOURHOOD_SIZE,
+    cdr_fts = Convolution1D(64, NEIGHBOURHOOD_SIZE,
                             strides=NEIGHBOURHOOD_SIZE,
                             activation='elu')(cdr)
-    cdr_edge_fts = Convolution1D(4, nsize_sq, strides=nsize_sq)(cdr_edges)
+    cdr_edge_fts = Convolution1D(16, nsize_sq, strides=nsize_sq)(cdr_edges)
 
     cdr_all_fts = concatenate([cdr_fts, cdr_edge_fts])
+    cdr_all_fts = Dropout(0.15)(cdr_all_fts)
     cdr_fts_m = Masking()(cdr_all_fts)
 
     ab_net_out = Bidirectional(LSTM(128, return_sequences=True),

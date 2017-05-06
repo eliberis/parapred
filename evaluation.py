@@ -44,18 +44,20 @@ def capri_evaluate_test_structures(folder="results"):
     return num_decoys
 
 def combine_datasets(train_set, test_set):
-    ags_train, cdrs_train, lbls_train, mask_train = train_set
-    ags_test, cdrs_test, lbls_test, mask_test = test_set
+    ags_train, ags_edges_train, cdrs_train, cdr_edges_train, lbls_train, mask_train = train_set
+    ags_test, ags_edges_test, cdrs_test, cdr_edges_test, lbls_test, mask_test = test_set
     ags = np.concatenate((ags_train, ags_test))
+    ags_edges = np.concatenate((ags_edges_train, ags_edges_test))
     cdrs = np.concatenate((cdrs_train, cdrs_test))
+    cdr_edges = np.concatenate((cdr_edges_train, cdr_edges_test))
     lbls = np.concatenate((lbls_train, lbls_test))
     masks = np.concatenate((mask_train, mask_test))
-    return ags, cdrs, lbls, masks
+    return ags, ags_edges, cdrs, cdr_edges, lbls, masks
 
 
 def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
                   weights_template="weights-fold-{}.h5"):
-    ags, cdrs, lbls, masks = dataset
+    ags, ags_edges, cdrs, cdr_edges, lbls, masks = dataset
     kf = KFold(n_splits=10, random_state=0, shuffle=True)
 
     all_lbls = []
@@ -65,25 +67,26 @@ def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
     for i, (train_idx, test_idx) in enumerate(kf.split(cdrs)):
         print("Fold: ", i + 1)
 
-        ags_train, cdrs_train, lbls_train, mask_train = \
-            ags[train_idx], cdrs[train_idx], lbls[train_idx], masks[train_idx]
-        ags_test, cdrs_test, lbls_test, mask_test = \
-            ags[test_idx], cdrs[test_idx], lbls[test_idx], masks[test_idx]
+        ags_train, ags_edges_train, cdrs_train, cdr_edges_train, lbls_train, mask_train = \
+            ags[train_idx], ags_edges[train_idx], cdrs[train_idx], cdr_edges[train_idx], lbls[train_idx], masks[train_idx]
+        ags_test, ags_edges_test, cdrs_test, cdr_edges_test, lbls_test, mask_test = \
+            ags[test_idx], ags_edges[test_idx], cdrs[test_idx], cdr_edges[test_idx], lbls[test_idx], masks[test_idx]
 
         example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
+        rate_schedule = lambda e: 0.001 if e >= 3 else 0.01
+
         model = model_func()
-
-        rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
-
-        model.fit([ags_train, cdrs_train, np.squeeze(mask_train)],
+        model.fit([ags_train, ags_edges_train, cdrs_train,
+                   cdr_edges_train, np.squeeze(mask_train)],
                   lbls_train,
-                  batch_size=32, epochs=25,
+                  batch_size=32, epochs=60,
                   sample_weight=example_weight,
                   callbacks=[LearningRateScheduler(rate_schedule)])
 
         model.save_weights(weights_template.format(i))
 
-        probs_test = model.predict([ags_test, cdrs_test, np.squeeze(mask_test)])
+        probs_test = model.predict([ags_test, ags_edges_test, cdrs_test,
+                                    cdr_edges_train, np.squeeze(mask_test)])
 
         all_lbls.append(lbls_test)
         all_probs.append(probs_test)

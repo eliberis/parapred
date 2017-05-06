@@ -30,7 +30,7 @@ def single_run():
 
     history = model.fit([ags_train, ags_edges_train, cdrs_train,
                          cdr_edges_train, np.squeeze(mask_train)],
-                        lbls_train,
+                        lbls_train, validation_split=0.15,
                         batch_size=32, epochs=60,
                         sample_weight=example_weight,
                         callbacks=[LearningRateScheduler(rate_schedule)])
@@ -66,8 +66,8 @@ def crossvalidation_eval():
 
     for i in range(1):
         print("Crossvalidation run", i+1)
-        output_file = "data/ab_only_seq/run-{}.p".format(i)
-        weights_template = "data/ab_only_seq/weights/run-" + str(i) + "-fold-{}.h5"
+        output_file = "data/struct_info/run-{}.p".format(i)
+        weights_template = "data/struct_info/weights/run-" + str(i) + "-fold-{}.h5"
         kfold_cv_eval(model_factory, dataset, output_file, weights_template)
 
 
@@ -124,4 +124,4 @@ def patchdock_classify():
     # Top 200: {'high': 1, 'med': 22, 'low': 3}
 
 if __name__ == "__main__":
-    process_cv_results()
+    single_run()

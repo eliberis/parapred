@@ -5,9 +5,8 @@ from model import *
 from plotting import *
 from keras.callbacks import LearningRateScheduler
 import numpy as np
-from math import exp
 
-def main():
+def single_run():
     train_set, test_set, params = open_dataset()
     # kfold_cv_eval(
     #     lambda: get_model(params["max_ag_len"], params["max_cdr_len"]),
@@ -59,5 +58,18 @@ def main():
     # plot_stats(history)
     # annotate_and_save_test_structures(probs_test)
 
+
+def crossvalidation_eval():
+    train_set, test_set, params = open_dataset()
+    model_factory = \
+        lambda: get_model(params["max_ag_len"], params["max_cdr_len"])
+    dataset = combine_datasets(train_set, test_set)
+
+    for i in range(10):
+        print("Crossvalidation run", i+1)
+        output_file = "data/seq_eval/run-{}.p".format(i)
+        weights_template = "data/seq_eval/weights/run-" + str(i) + "-fold-{}.h5"
+        kfold_cv_eval(model_factory, dataset, output_file, weights_template)
+
 if __name__ == "__main__":
-    main()
+    crossvalidation_eval()

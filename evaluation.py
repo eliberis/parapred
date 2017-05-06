@@ -1,12 +1,12 @@
 import numpy as np
 import pickle
-from plotting import plot_prec_rec_curve
 from sklearn.model_selection import KFold
 from data_provider import load_chains, TEST_DATASET_DESC_FILE
 from structure_processor import save_chain, save_structure, \
     produce_annotated_ab_structure, extended_epitope
 from patchdock_tools import output_patchdock_ab_constraint, \
     output_patchdock_ag_constraint, process_transformations
+from keras.callbacks import LearningRateScheduler
 
 AB_STRUCT_SAVE_PATH = "data/annotated/{0}_AB.pdb"
 AG_STRUCT_SAVE_PATH = "data/annotated/{0}_AG.pdb"
@@ -49,7 +49,8 @@ def combine_datasets(train_set, test_set):
     return ags, cdrs, lbls, masks
 
 
-def kfold_cv_eval(model_func, dataset):
+def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
+                  weights_template="weights-fold-{}.h5"):
     ags, cdrs, lbls, masks = dataset
     kf = KFold(n_splits=10, random_state=0, shuffle=True)
 
@@ -65,15 +66,20 @@ def kfold_cv_eval(model_func, dataset):
         ags_test, cdrs_test, lbls_test, mask_test = \
             ags[test_idx], cdrs[test_idx], lbls[test_idx], masks[test_idx]
 
-        example_weight = np.squeeze(lbls_train * 1.5 + 1)
+        example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
         model = model_func()
-        model.fit([ags_train, cdrs_train], lbls_train,
-                  batch_size=32, epochs=20,
-                  sample_weight=example_weight)
 
-        model.save_weights("fold_weights/{}.h5".format(i))
+        rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
 
-        probs_test = model.predict([ags_test, cdrs_test])
+        model.fit([ags_train, cdrs_train, np.squeeze(mask_train)],
+                  lbls_train,
+                  batch_size=32, epochs=17,
+                  sample_weight=example_weight,
+                  callbacks=[LearningRateScheduler(rate_schedule)])
+
+        model.save_weights(weights_template.format(i))
+
+        probs_test = model.predict([ags_test, cdrs_test, np.squeeze(mask_test)])
         all_lbls.append(lbls_test)
         all_probs.append(probs_test)
         all_masks.append(mask_test)
@@ -82,18 +88,8 @@ def kfold_cv_eval(model_func, dataset):
     prob_mat = np.concatenate(all_probs)
     mask_mat = np.concatenate(all_masks)
 
-    with open("fold_weights/dump.p", "wb") as f:
-        pickle.dump((lbl_mat, prob_mat), f)
-
-    # with open("fold_weights/dump.p", "rb") as f:
-    #     lbl_mat, prob_mat = pickle.load(f)
-
-    seq_lens = np.sum(np.squeeze(mask_mat), axis=1)
-    lbls_flat = flatten_with_lengths(lbl_mat, seq_lens)
-    probs_flat = flatten_with_lengths(prob_mat, seq_lens)
-
-    plot_prec_rec_curve(lbls_flat, probs_flat, "PR curve for a sequence-only model",
-                        output_filename="fold_weights/full.pdf")
+    with open(output_file, "wb") as f:
+        pickle.dump((lbl_mat, prob_mat, mask_mat), f)
 
 
 def flatten_with_lengths(matrix, lengths):

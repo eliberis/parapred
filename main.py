@@ -22,7 +22,7 @@ def single_run():
 
     ags_train, cdrs_train, lbls_train, mask_train = train_set
     ags_test, cdrs_test, lbls_test, mask_test = test_set
-    example_weight = np.squeeze((lbls_train * 5 + 1) * mask_train)
+    example_weight = np.squeeze((lbls_train * 6 + 1) * mask_train)
 
     rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
 

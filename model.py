@@ -82,8 +82,13 @@ def get_model(max_ag_len, max_cdr_len):
     loop_fts = [Dropout(0.1)(loop_conv(loop)) for loop in input_loops]
     loop_seq = [Masking()(loop) for loop in loop_fts]
 
-    loop_neigh_conv = MaskedConvolution1D(32, 3, padding='same', activation='elu')
-    loop_neigh_fts = [loop_neigh_conv(loop) for loop in loop_seq]
+    loop_conv1 = MaskedConvolution1D(32, 3, padding='same', activation='elu')
+    loop_conv2 = MaskedConvolution1D(32, 3, padding='same', activation='elu')
+    loop_conv3 = MaskedConvolution1D(32, 3, padding='same', activation='elu')
+
+    loop_neigh_fts = [loop_conv3(Dropout(0.1)(
+                        loop_conv2(Dropout(0.1)(
+                            loop_conv1(loop))))) for loop in loop_seq]
 
     # ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_seq)
     # ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)

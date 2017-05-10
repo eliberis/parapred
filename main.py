@@ -52,7 +52,7 @@ def single_run():
     print(confusion_matrix(lbls_flat, pred_flat))
 
     plot_roc_curve(lbls_flat, probs_flat)
-    plot_prec_rec_curve(lbls_flat, probs_flat,
+    plot_prec_rec_curve([lbls_flat], [probs_flat],
                         output_filename="abip-sets.pdf")
 
     # plot_stats(history)
@@ -70,6 +70,27 @@ def crossvalidation_eval():
         output_file = "data/seq_eval/run-{}.p".format(i)
         weights_template = "data/seq_eval/weights/run-" + str(i) + "-fold-{}.h5"
         kfold_cv_eval(model_factory, dataset, output_file, weights_template)
+
+
+def process_cv_results():
+    probs = []
+    labels = []
+    for r in range(10):
+        result_filename = "runs/run-{}.p".format(r)
+        with open(result_filename, "rb") as f:
+            lbl_mat, prob_mat, mask_mat = pickle.load(f)
+
+        seq_lens = np.sum(np.squeeze(mask_mat), axis=1)
+        p = flatten_with_lengths(prob_mat, seq_lens)
+        l = flatten_with_lengths(lbl_mat, seq_lens)
+
+        probs.append(p)
+        labels.append(l)
+
+    plot_prec_rec_curve(labels, probs,
+                        plot_name="PR curve for sequence-only model",
+                        output_filename="seq-only.pdf")
+
 
 if __name__ == "__main__":
     crossvalidation_eval()

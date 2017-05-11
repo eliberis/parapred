@@ -8,26 +8,26 @@ from patchdock_tools import output_patchdock_ab_constraint, \
     output_patchdock_ag_constraint, process_transformations
 from keras.callbacks import LearningRateScheduler
 
-AB_STRUCT_SAVE_PATH = "data/annotated/{0}_AB.pdb"
-AG_STRUCT_SAVE_PATH = "data/annotated/{0}_AG.pdb"
-AB_PATCHDOCK_SAVE_PATH = "data/annotated/{0}_ab_patchdock.txt"
-AG_PATCHDOCK_SAVE_PATH = "data/annotated/{0}_ag_patchdock.txt"
+AB_STRUCT_SAVE_PATH = "data/{0}/{1}_AB.pdb"
+AG_STRUCT_SAVE_PATH = "data/{0}/{1}_AG.pdb"
+AB_PATCHDOCK_SAVE_PATH = "data/{0}/{1}_ab_patchdock.txt"
+AG_PATCHDOCK_SAVE_PATH = "data/{0}/{1}_ag_patchdock.txt"
 PATCHDOCK_RESULTS_PATH = "data/results/{0}.txt"
 
 
-def annotate_and_save_test_structures(probs):
+def annotate_and_save_test_structures(probs, folder="annotated"):
     chains = load_chains(TEST_DATASET_DESC_FILE)
     for i, (ag_chain, ab_h_chain, ab_l_chain, pdb_name) in enumerate(chains):
         p = probs[6*i:6*(i+1), :]
         ab_struct = produce_annotated_ab_structure(ab_h_chain, ab_l_chain, p)
-        save_structure(ab_struct, AB_STRUCT_SAVE_PATH.format(pdb_name))
+        save_structure(ab_struct, AB_STRUCT_SAVE_PATH.format(folder, pdb_name))
 
-        save_chain(ag_chain, AG_STRUCT_SAVE_PATH.format(pdb_name))
+        save_chain(ag_chain, AG_STRUCT_SAVE_PATH.format(folder, pdb_name))
 
-        abpd_fname = AB_PATCHDOCK_SAVE_PATH.format(pdb_name)
+        abpd_fname = AB_PATCHDOCK_SAVE_PATH.format(folder, pdb_name)
         output_patchdock_ab_constraint(ab_struct, filename=abpd_fname)
 
-        agpd_fname = AG_PATCHDOCK_SAVE_PATH.format(pdb_name)
+        agpd_fname = AG_PATCHDOCK_SAVE_PATH.format(folder, pdb_name)
         ext_epi = extended_epitope(ag_chain, ab_h_chain, ab_l_chain, cutoff=5.0)
         output_patchdock_ag_constraint(ext_epi, ag_chain.id, filename=agpd_fname)
 

@@ -6,6 +6,7 @@ from plotting import *
 from keras.callbacks import LearningRateScheduler
 import numpy as np
 
+
 def single_run():
     train_set, test_set, params = open_dataset()
     # kfold_cv_eval(
@@ -92,5 +93,21 @@ def process_cv_results():
                         output_filename="seq-only.pdf")
 
 
+def patchdock_prepare():
+    _, test_set, params = open_dataset()
+    model = get_model(params["max_ag_len"], params["max_cdr_len"])
+    model.load_weights("abip-sets.h5")
+
+    ags_test, cdrs_test, lbls_test, mask_test = test_set
+    probs_test = model.predict([ags_test, cdrs_test, np.squeeze(mask_test)])
+
+    contact = lbls_test
+    cdrs = mask_test
+    parapred = probs_test
+
+    for name, probs in [("contact", contact), ("CDR", cdrs), ("parapred", parapred)]:
+        annotate_and_save_test_structures(probs, "annotated/" + name)
+
+
 if __name__ == "__main__":
-    crossvalidation_eval()
+    patchdock_prepare()

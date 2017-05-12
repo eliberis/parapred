@@ -109,5 +109,21 @@ def patchdock_prepare():
         annotate_and_save_test_structures(probs, "annotated/" + name)
 
 
+def patchdock_classify():
+    print("CDR results")
+    print(capri_evaluate_test_structures("results/CDR"))
+    # Top 10: {'high': 1, 'med': 2, 'low': 0}
+    # Top 200: {'high': 1, 'med': 14, 'low': 1}
+
+    print("Parapred results")
+    print(capri_evaluate_test_structures("results/parapred"))
+    # Top 10: {'high': 1, 'med': 8, 'low': 0}
+    # Top 200: {'high': 1, 'med': 20, 'low': 2}
+
+    print("Contact results")
+    print(capri_evaluate_test_structures("results/contact"))
+    # Top 10: {'high': 1, 'med': 7, 'low': 1}
+    # Top 200: {'high': 1, 'med': 22, 'low': 3}
+
 if __name__ == "__main__":
-    patchdock_prepare()
+    patchdock_classify()

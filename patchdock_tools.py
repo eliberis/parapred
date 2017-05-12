@@ -114,6 +114,8 @@ def process_transformations(trans_file, ag_chain, ab_h_chain, ab_l_chain,
     lines = f.readlines()
     f.close()
 
+    num_decoys = {'high': 0, 'med': 0, 'low': 0}
+
     # A bit wrong?
     orig_iface = interface_pairs(ag_chain, ab_h_chain, ab_l_chain)
     orig_ext_epi = extended_epitope(ag_chain, ab_h_chain, ab_l_chain, cutoff=10.0)
@@ -136,9 +138,18 @@ def process_transformations(trans_file, ag_chain, ab_h_chain, ab_l_chain,
 
         cls = decoy_class(f_nat, l_rmsd, i_rmsd)
         if cls is not None:
-            print("Decoy {} of PDB {}".format(i, trans_file))
-            print("Class:", cls)
-            print("f_nat:", f_nat)
-            print("L_RMSD:", l_rmsd)
-            print("I_RMSD:", i_rmsd)
-            print("----------------")
+            # print("Decoy {} of PDB {}".format(i, trans_file))
+            # print("Class:", cls)
+            # print("f_nat:", f_nat)
+            # print("L_RMSD:", l_rmsd)
+            # print("I_RMSD:", i_rmsd)
+            # print("----------------")
+            num_decoys[cls] += 1
+
+    # print(num_decoys)
+
+    # Return highest quality decoy
+    if num_decoys['high'] > 0: return 'high'
+    elif num_decoys['med'] > 0: return 'med'
+    elif num_decoys['low'] > 0: return 'low'
+    else: return None

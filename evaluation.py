@@ -12,7 +12,7 @@ AB_STRUCT_SAVE_PATH = "data/{0}/{1}_AB.pdb"
 AG_STRUCT_SAVE_PATH = "data/{0}/{1}_AG.pdb"
 AB_PATCHDOCK_SAVE_PATH = "data/{0}/{1}_ab_patchdock.txt"
 AG_PATCHDOCK_SAVE_PATH = "data/{0}/{1}_ag_patchdock.txt"
-PATCHDOCK_RESULTS_PATH = "data/results/{0}.txt"
+PATCHDOCK_RESULTS_PATH = "data/{0}/{1}.txt"
 
 
 def annotate_and_save_test_structures(probs, folder="annotated"):
@@ -32,12 +32,16 @@ def annotate_and_save_test_structures(probs, folder="annotated"):
         output_patchdock_ag_constraint(ext_epi, ag_chain.id, filename=agpd_fname)
 
 
-def capri_evaluate_test_structures():
+def capri_evaluate_test_structures(folder="results"):
+    num_decoys = {'high': 0, 'med': 0, 'low': 0}
+
     chains = load_chains(TEST_DATASET_DESC_FILE)
     for ag_chain, ab_h_chain, ab_l_chain, pdb_name in chains:
-        trans_file = PATCHDOCK_RESULTS_PATH.format(pdb_name)
-        process_transformations(trans_file, ag_chain, ab_h_chain, ab_l_chain)
+        trans_file = PATCHDOCK_RESULTS_PATH.format(folder, pdb_name)
+        q = process_transformations(trans_file, ag_chain, ab_h_chain, ab_l_chain)
+        if q is not None: num_decoys[q] += 1
 
+    return num_decoys
 
 def combine_datasets(train_set, test_set):
     ags_train, cdrs_train, lbls_train, mask_train = train_set

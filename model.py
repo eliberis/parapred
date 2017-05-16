@@ -99,11 +99,12 @@ def get_model(max_ag_len, max_cdr_len):
     return model
 
 
-def baseline_model(max_cdr_len):
+def baseline_model(max_ag_len, max_cdr_len):
     input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
     input_ab_m = Masking()(input_ab)
 
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(input_ab_m)
+    aa_feats = TimeDistributed(Dense(64, activation='elu'))(input_ab_m)
+    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(aa_feats)
     model = Model(inputs=input_ab, outputs=aa_probs)
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',

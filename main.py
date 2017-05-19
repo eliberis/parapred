@@ -18,7 +18,7 @@ def single_run():
     print("Max CDR length:", max_cdr_len)
     print("Pos class weight:", pos_class_weight)
 
-    model = get_model(params["max_ag_len"], params["max_cdr_len"])
+    model = no_neighbourhood_model(params["max_ag_len"], params["max_cdr_len"])
     print(model.summary())
 
     ags_train, cdrs_train, lbls_train, mask_train = train_set
@@ -28,8 +28,8 @@ def single_run():
     rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
 
     history = model.fit([ags_train, cdrs_train, np.squeeze(mask_train)],
-                        lbls_train,
-                        batch_size=32, epochs=17,
+                        lbls_train, validation_split=0.15,
+                        batch_size=32, epochs=30,
                         sample_weight=example_weight,
                         callbacks=[LearningRateScheduler(rate_schedule)])
 
@@ -59,20 +59,20 @@ def single_run():
 def crossvalidation_eval():
     train_set, test_set, params = open_dataset()
     model_factory = \
-        lambda: get_model(params["max_ag_len"], params["max_cdr_len"])
+        lambda: ab_only_model(params["max_ag_len"], params["max_cdr_len"])
     dataset = combine_datasets(train_set, test_set)
 
-    for i in range(10):
+    for i in range(1):
         print("Crossvalidation run", i+1)
-        output_file = "data/seq_eval/run-{}.p".format(i)
-        weights_template = "data/seq_eval/weights/run-" + str(i) + "-fold-{}.h5"
+        output_file = "data/ab_only_seq/run-{}.p".format(i)
+        weights_template = "data/ab_only_seq/weights/run-" + str(i) + "-fold-{}.h5"
         kfold_cv_eval(model_factory, dataset, output_file, weights_template)
 
 
 def process_cv_results():
     probs = []
     labels = []
-    for r in range(10):
+    for r in range(1):
         result_filename = "runs/run-{}.p".format(r)
         with open(result_filename, "rb") as f:
             lbl_mat, prob_mat, mask_mat = pickle.load(f)
@@ -85,7 +85,7 @@ def process_cv_results():
         labels.append(l)
 
     plot_prec_rec_curve(labels, probs,
-                        plot_name="PR curve for sequence-only model",
+                        plot_name="PR curve for RNN-based sequence-only model",
                         output_filename="seq-only.pdf")
 
 
@@ -122,4 +122,4 @@ def patchdock_classify():
     # Top 200: {'high': 1, 'med': 22, 'low': 3}
 
 if __name__ == "__main__":
-    patchdock_classify()
+    single_run()

@@ -1,13 +1,9 @@
 from keras.engine import Model
 from keras.layers import Layer, Bidirectional, TimeDistributed, \
     Dense, LSTM, Masking, Input, RepeatVector, Dropout, Convolution1D
-from keras.layers.merge import concatenate
+from keras.layers.merge import concatenate, add
 import keras.backend as K
 from data_provider import NUM_FEATURES
-
-RNN_STATE_SIZE = 64
-CONV_FILTERS = 32
-CONV_FILTER_SPAN = 9
 
 
 def false_neg(y_true, y_pred):
@@ -68,22 +64,24 @@ def get_model(max_ag_len, max_cdr_len):
     ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
     ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
 
-    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE, dropout=0.1,
-                                recurrent_dropout=0.1),
+    enc_ag = Bidirectional(LSTM(128, dropout=0.15, recurrent_dropout=0.15),
                            merge_mode='concat')(ag_neigh_fts)
 
     input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
 
-    ab_fts = Convolution1D(32, 1, activation='elu')(input_ab)
-    ab_seq = Masking()(ab_fts)
-    ab_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ab_seq)
+    ab_fts = Convolution1D(NUM_FEATURES, 1, activation='elu')(input_ab)
+    ab_neigh_fts = Convolution1D(NUM_FEATURES, 3, padding='same', activation='elu')(ab_fts)
+
+    ab_res_sum = add([input_ab, ab_neigh_fts])
+    ab_seq = Masking()(ab_res_sum)
 
     label_mask = Input(shape=(max_cdr_len,))
 
     # Adding dropout_U here is a bad idea --- sequences are very short and
     # all information is essential
-    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
-                               merge_mode='concat')(ab_neigh_fts)
+    ab_net_out = Bidirectional(LSTM(128, dropout=0.15, recurrent_dropout=0.15,
+                                    return_sequences=True),
+                               merge_mode='concat')(ab_seq)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
     ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])

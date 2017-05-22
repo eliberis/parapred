@@ -72,7 +72,7 @@ def crossvalidation_eval():
 def process_cv_results():
     probs = []
     labels = []
-    for r in range(1):
+    for r in range(10):
         result_filename = "runs/run-{}.p".format(r)
         with open(result_filename, "rb") as f:
             lbl_mat, prob_mat, mask_mat = pickle.load(f)
@@ -85,7 +85,7 @@ def process_cv_results():
         labels.append(l)
 
     plot_prec_rec_curve(labels, probs,
-                        plot_name="PR curve for RNN-based sequence-only model",
+                        plot_name="PR curve for the final sequence-only model",
                         output_filename="seq-only.pdf")
 
 
@@ -122,4 +122,4 @@ def patchdock_classify():
     # Top 200: {'high': 1, 'med': 22, 'low': 3}
 
 if __name__ == "__main__":
-    single_run()
+    process_cv_results()

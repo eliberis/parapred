@@ -119,7 +119,7 @@ def ab_only_model(max_ag_len, max_cdr_len):
 
     # Adding dropout_U here is a bad idea --- sequences are very short and
     # all information is essential
-    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
+    ab_net_out = Bidirectional(LSTM(128, return_sequences=True),
                                merge_mode='concat')(input_ab_m)
 
     ab_ag_repr = MaskingByLambda(mask_by_input(label_mask))(ab_net_out)
@@ -137,7 +137,7 @@ def no_neighbourhood_model(max_ag_len, max_cdr_len):
     input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
     input_ag_m = Masking()(input_ag)
 
-    enc_ag = Bidirectional(LSTM(RNN_STATE_SIZE),
+    enc_ag = Bidirectional(LSTM(128),
                            merge_mode='concat')(input_ag_m)
 
     input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
@@ -147,7 +147,7 @@ def no_neighbourhood_model(max_ag_len, max_cdr_len):
 
     # Adding dropout_U here is a bad idea --- sequences are very short and
     # all information is essential
-    ab_net_out = Bidirectional(LSTM(RNN_STATE_SIZE, return_sequences=True),
+    ab_net_out = Bidirectional(LSTM(128, return_sequences=True),
                                merge_mode='concat')(input_ab_m)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)

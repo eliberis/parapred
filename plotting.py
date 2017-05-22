@@ -67,8 +67,13 @@ def plot_prec_rec_curve(labels_test, probs_test, plot_name="",
     err_prec = np.std(precs, axis=0)
 
     plt.plot(recalls, avg_prec, c="#0072CF", label="ParaPred")
-    plt.fill_between(recalls, avg_prec-2*err_prec, avg_prec+2*err_prec,
-                     facecolor="#68ACE5")
+
+    btm_err = avg_prec-2*err_prec
+    btm_err[btm_err < 0.0] = 0.0
+    top_err = avg_prec+2*err_prec
+    top_err[top_err > 1.0] = 1.0
+
+    plt.fill_between(recalls, btm_err, top_err, facecolor="#68ACE5")
 
     abip_rec = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.92])
     abip_pre = \

@@ -66,7 +66,7 @@ def plot_prec_rec_curve(labels_test, probs_test, plot_name="",
     avg_prec = np.average(precs, axis=0)
     err_prec = np.std(precs, axis=0)
 
-    plt.plot(recalls, avg_prec, c="#0072CF", label="ParaPred")
+    plt.plot(recalls, avg_prec, c="#0072CF", label="This method")
 
     btm_err = avg_prec-2*err_prec
     btm_err[btm_err < 0.0] = 0.0
@@ -109,7 +109,3 @@ def plot_roc_curve(labels_test, probs_test, plot_name="ROC Curve",
 
     plt.title(plot_name)
     plt.savefig(output_filename)
-
-
-def confusion_matrix(true, pred):
-    return metrics.confusion_matrix(true, pred)

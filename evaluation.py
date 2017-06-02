@@ -7,6 +7,7 @@ from structure_processor import save_chain, save_structure, \
 from patchdock_tools import output_patchdock_ab_constraint, \
     output_patchdock_ag_constraint, process_transformations
 from keras.callbacks import LearningRateScheduler
+from sklearn.metrics import confusion_matrix
 
 AB_STRUCT_SAVE_PATH = "data/{0}/{1}_AB.pdb"
 AG_STRUCT_SAVE_PATH = "data/{0}/{1}_AG.pdb"
@@ -102,3 +103,39 @@ def flatten_with_lengths(matrix, lengths):
         seq = example[:lengths[i]]
         seqs.append(seq)
     return np.concatenate(seqs)
+
+
+def compute_classifier_metrics(labels, probs, threshold=0.5):
+    matrices = []
+
+    for l, p in zip(labels, probs):
+        l_pred = (p > threshold).astype(int)
+        matrices.append(confusion_matrix(l, l_pred))
+
+    matrices = np.stack(matrices)
+    mean_conf = np.mean(matrices, axis=0)
+    errs_conf = 2 * np.std(matrices, axis=0)
+
+    tps = matrices[:, 1, 1]
+    fns = matrices[:, 1, 0]
+    fps = matrices[:, 0, 1]
+
+    recalls = tps / (tps + fns)
+    precisions = tps / (tps + fps)
+
+    rec = np.mean(recalls)
+    rec_err = 2 * np.std(recalls)
+    prec = np.mean(precisions)
+    prec_err = 2 * np.std(precisions)
+
+    fscores = 2 * precisions * recalls / (precisions + recalls)
+    fsc = np.mean(fscores)
+    fsc_err = 2 * np.std(fscores)
+
+    print("Mean confusion matrix and error")
+    print(mean_conf)
+    print(errs_conf)
+
+    print("Recall = {} +/- {}".format(rec, rec_err))
+    print("Precision = {} +/- {}".format(prec, prec_err))
+    print("F-score = {} +/- {}".format(fsc, fsc_err))

@@ -88,6 +88,8 @@ def process_cv_results():
                         plot_name="PR curve for the final sequence-only model",
                         output_filename="seq-only.pdf")
 
+    compute_classifier_metrics(labels, probs, threshold=0.5)
+
 
 def patchdock_prepare():
     _, test_set, params = open_dataset()

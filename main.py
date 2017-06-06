@@ -64,7 +64,7 @@ def crossvalidation_eval():
         lambda: get_model(params["max_ag_len"], params["max_cdr_len"])
     dataset = combine_datasets(train_set, test_set)
 
-    for i in range(1):
+    for i in range(4, 10):
         print("Crossvalidation run", i+1)
         output_file = "data/struct_info/run-{}.p".format(i)
         weights_template = "data/struct_info/weights/run-" + str(i) + "-fold-{}.h5"
@@ -124,4 +124,4 @@ def patchdock_classify():
     # Top 200: {'high': 1, 'med': 22, 'low': 3}
 
 if __name__ == "__main__":
-    single_run()
+    crossvalidation_eval()

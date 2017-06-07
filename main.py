@@ -124,4 +124,4 @@ def patchdock_classify():
     # Top 200: {'high': 1, 'med': 22, 'low': 3}
 
 if __name__ == "__main__":
-    process_cv_results()
+    single_run()

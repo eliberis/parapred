@@ -6,8 +6,8 @@ from structure_processor import save_chain, save_structure, \
     produce_annotated_ab_structure, extended_epitope
 from patchdock_tools import output_patchdock_ab_constraint, \
     output_patchdock_ag_constraint, process_transformations
-from keras.callbacks import LearningRateScheduler
-from sklearn.metrics import confusion_matrix
+from keras.callbacks import LearningRateScheduler, EarlyStopping
+from sklearn.metrics import confusion_matrix, roc_auc_score
 
 AB_STRUCT_SAVE_PATH = "data/{0}/{1}_AB.pdb"
 AG_STRUCT_SAVE_PATH = "data/{0}/{1}_AG.pdb"
@@ -55,9 +55,9 @@ def combine_datasets(train_set, test_set):
 
 
 def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
-                  weights_template="weights-fold-{}.h5"):
+                  weights_template="weights-fold-{}.h5", seed=0):
     ags, cdrs, lbls, masks = dataset
-    kf = KFold(n_splits=10, random_state=0, shuffle=True)
+    kf = KFold(n_splits=10, random_state=seed, shuffle=True)
 
     all_lbls = []
     all_probs = []
@@ -72,15 +72,21 @@ def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
             ags[test_idx], cdrs[test_idx], lbls[test_idx], masks[test_idx]
 
         example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
+        test_ex_weight = np.squeeze((lbls_test * 1.5 + 1) * mask_test)
         model = model_func()
 
         rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
 
         model.fit([cdrs_train, np.squeeze(mask_train)],
                   lbls_train,
-                  batch_size=32, epochs=25,
+                  batch_size=32, epochs=150,
+                  # For informational purposes about the best number of epochs
+                  # TODO: replace for proper evaluation
+                  validation_data=([cdrs_test, np.squeeze(mask_test)],
+                                   lbls_test, test_ex_weight),
                   sample_weight=example_weight,
-                  callbacks=[LearningRateScheduler(rate_schedule)])
+                  callbacks=[LearningRateScheduler(rate_schedule),
+                             EarlyStopping(verbose=1, patience=3)])
 
         model.save_weights(weights_template.format(i))
 
@@ -107,8 +113,10 @@ def flatten_with_lengths(matrix, lengths):
 
 def compute_classifier_metrics(labels, probs, threshold=0.5):
     matrices = []
+    aucs = []
 
     for l, p in zip(labels, probs):
+        aucs.append(roc_auc_score(l, p))
         l_pred = (p > threshold).astype(int)
         matrices.append(confusion_matrix(l, l_pred))
 
@@ -132,6 +140,10 @@ def compute_classifier_metrics(labels, probs, threshold=0.5):
     fsc = np.mean(fscores)
     fsc_err = 2 * np.std(fscores)
 
+    auc_scores = np.array(aucs)
+    auc = np.mean(auc_scores)
+    auc_err = 2 * np.std(auc_scores)
+
     print("Mean confusion matrix and error")
     print(mean_conf)
     print(errs_conf)
@@ -139,3 +151,4 @@ def compute_classifier_metrics(labels, probs, threshold=0.5):
     print("Recall = {} +/- {}".format(rec, rec_err))
     print("Precision = {} +/- {}".format(prec, prec_err))
     print("F-score = {} +/- {}".format(fsc, fsc_err))
+    print("ROC AUC = {} +/- {}".format(auc, auc_err))

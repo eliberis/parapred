@@ -3,7 +3,7 @@ from structure_processor import *
 from evaluation import *
 from model import *
 from plotting import *
-from keras.callbacks import LearningRateScheduler
+from keras.callbacks import LearningRateScheduler, EarlyStopping
 import numpy as np
 
 
@@ -18,24 +18,25 @@ def single_run():
     print("Max CDR length:", max_cdr_len)
     print("Pos class weight:", pos_class_weight)
 
-    model = get_model(params["max_ag_len"], params["max_cdr_len"])
+    model = ab_seq_model(params["max_cdr_len"])
     print(model.summary())
 
     ags_train, cdrs_train, lbls_train, mask_train = train_set
     ags_test, cdrs_test, lbls_test, mask_test = test_set
     example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
 
-    rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
+    rate_schedule = lambda e: 0.001 if e >= 10 else 0.01
 
-    history = model.fit([ags_train, cdrs_train, np.squeeze(mask_train)],
+    history = model.fit([cdrs_train, np.squeeze(mask_train)],
                         lbls_train, validation_split=0.15,
-                        batch_size=32, epochs=30,
+                        batch_size=32, epochs=150,
                         sample_weight=example_weight,
-                        callbacks=[LearningRateScheduler(rate_schedule)])
+                        callbacks=[LearningRateScheduler(rate_schedule),
+                                   EarlyStopping(verbose=1, patience=3)])
 
     model.save_weights("abip-sets.h5")
 
-    probs_test = model.predict([ags_test, cdrs_test, np.squeeze(mask_test)])
+    probs_test = model.predict([cdrs_test, np.squeeze(mask_test)])
 
     test_seq_lens = np.sum(np.squeeze(mask_test), axis=1)
     probs_flat = flatten_with_lengths(probs_test, test_seq_lens)
@@ -59,21 +60,22 @@ def single_run():
 def crossvalidation_eval():
     train_set, test_set, params = open_dataset()
     model_factory = \
-        lambda: ab_only_model(params["max_ag_len"], params["max_cdr_len"])
+        lambda: ab_seq_model(params["max_cdr_len"])
     dataset = combine_datasets(train_set, test_set)
 
-    for i in range(1):
+    for i in range(10):
         print("Crossvalidation run", i+1)
-        output_file = "data/ab_only_seq/run-{}.p".format(i)
-        weights_template = "data/ab_only_seq/weights/run-" + str(i) + "-fold-{}.h5"
-        kfold_cv_eval(model_factory, dataset, output_file, weights_template)
+        output_file = "cv-ab-seq/run-{}.p".format(i)
+        weights_template = "cv-ab-seq/weights/run-" + str(i) + "-fold-{}.h5"
+        kfold_cv_eval(model_factory, dataset, output_file, weights_template,
+                      seed=i)
 
 
 def process_cv_results():
     probs = []
     labels = []
-    for r in range(10):
-        result_filename = "runs/run-{}.p".format(r)
+    for r in range(1):
+        result_filename = "cv-ab-seq/run-{}.p".format(r)
         with open(result_filename, "rb") as f:
             lbl_mat, prob_mat, mask_mat = pickle.load(f)
 
@@ -81,11 +83,13 @@ def process_cv_results():
         p = flatten_with_lengths(prob_mat, seq_lens)
         l = flatten_with_lengths(lbl_mat, seq_lens)
 
+        plot_roc_curve(l, p, plot_name="ROC", output_filename="roc.pdf")
+
         probs.append(p)
         labels.append(l)
 
     plot_prec_rec_curve(labels, probs,
-                        plot_name="PR curve for the final sequence-only model",
+                        plot_name="PR curve for the antibody sequence-only model",
                         output_filename="seq-only.pdf")
 
     compute_classifier_metrics(labels, probs, threshold=0.5)
@@ -93,7 +97,7 @@ def process_cv_results():
 
 def patchdock_prepare():
     _, test_set, params = open_dataset()
-    model = get_model(params["max_ag_len"], params["max_cdr_len"])
+    model = ab_seq_model(params["max_cdr_len"])
     model.load_weights("abip-sets.h5")
 
     ags_test, cdrs_test, lbls_test, mask_test = test_set
@@ -124,4 +128,4 @@ def patchdock_classify():
     # Top 200: {'high': 1, 'med': 22, 'low': 3}
 
 if __name__ == "__main__":
-    single_run()
+    process_cv_results()

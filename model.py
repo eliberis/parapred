@@ -1,8 +1,10 @@
 from keras.engine import Model
 from keras.layers import Layer, Bidirectional, TimeDistributed, \
-    Dense, LSTM, Masking, Input, RepeatVector, Dropout, Convolution1D
+    Dense, LSTM, Masking, Input, RepeatVector, Dropout, Convolution1D, \
+    BatchNormalization, Activation
 from keras.layers.merge import concatenate, add
 import keras.backend as K
+from keras.regularizers import l2
 from data_provider import NUM_FEATURES
 
 
@@ -28,12 +30,6 @@ class MaskingByLambda(Layer):
         exd_mask = K.expand_dims(self.mask_func(x, mask), axis=-1)
         return x * K.cast(exd_mask, K.floatx())
 
-
-# Base masking decision only on the first elements
-def mask(input, mask):
-    return K.any(K.not_equal(input[:, :, :(2*RNN_STATE_SIZE)], 0.0), axis=-1)
-
-
 def mask_by_input(tensor):
     return lambda input, mask: tensor
 
@@ -55,38 +51,28 @@ class MaskedConvolution1D(Convolution1D):
         return x * K.cast(mask, K.floatx())
 
 
-def get_model(max_ag_len, max_cdr_len):
+def ab_ag_seq_model(max_ag_len, max_cdr_len):
     input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
-    ag_fts = Convolution1D(32, 1, activation='elu')(input_ag)
-    ag_seq = Masking()(ag_fts)
+    ag_seq = Masking()(input_ag)
 
-    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_seq)
-    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
-    ag_neigh_fts = MaskedConvolution1D(32, 3, padding='same', activation='elu')(ag_neigh_fts)
-
-    enc_ag = Bidirectional(LSTM(128, dropout=0.15, recurrent_dropout=0.15),
-                           merge_mode='concat')(ag_neigh_fts)
+    enc_ag = Bidirectional(LSTM(128, dropout=0.1, recurrent_dropout=0.1),
+                           merge_mode='concat')(ag_seq)
 
     input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
-
-    ab_fts = Convolution1D(NUM_FEATURES, 1, activation='elu')(input_ab)
-    ab_neigh_fts = Convolution1D(NUM_FEATURES, 3, padding='same', activation='elu')(ab_fts)
-
-    ab_res_sum = add([input_ab, ab_neigh_fts])
-    ab_seq = Masking()(ab_res_sum)
-
     label_mask = Input(shape=(max_cdr_len,))
 
-    # Adding dropout_U here is a bad idea --- sequences are very short and
-    # all information is essential
-    ab_net_out = Bidirectional(LSTM(128, dropout=0.15, recurrent_dropout=0.15,
-                                    return_sequences=True),
-                               merge_mode='concat')(ab_seq)
+    seq = Masking()(input_ab)
+
+    loc_fts = MaskedConvolution1D(64, 5, padding='same', activation='elu')(seq)
+
+    glb_fts = Bidirectional(LSTM(256, dropout=0.15, recurrent_dropout=0.2,
+                                 return_sequences=True),
+                            merge_mode='concat')(loc_fts)
 
     enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
-    ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])
+    ab_ag_repr = concatenate([glb_fts, enc_ag_rep])
     ab_ag_repr = MaskingByLambda(mask_by_input(label_mask))(ab_ag_repr)
-    ab_ag_repr = Dropout(0.1)(ab_ag_repr)
+    ab_ag_repr = Dropout(0.3)(ab_ag_repr)
 
     aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
     model = Model(inputs=[input_ag, input_ab, label_mask], outputs=aa_probs)
@@ -97,65 +83,25 @@ def get_model(max_ag_len, max_cdr_len):
     return model
 
 
-def baseline_model(max_ag_len, max_cdr_len):
+def ab_seq_model(max_cdr_len):
     input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
-    input_ab_m = Masking()(input_ab)
-
-    aa_feats = TimeDistributed(Dense(64, activation='elu'))(input_ab_m)
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(aa_feats)
-    model = Model(inputs=input_ab, outputs=aa_probs)
-    model.compile(loss='binary_crossentropy',
-                  optimizer='adam',
-                  metrics=['binary_accuracy', false_pos, false_neg],
-                  sample_weight_mode="temporal")
-    return model
-
-
-def ab_only_model(max_ag_len, max_cdr_len):
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
-    input_ab_m = Masking()(input_ab)
-
     label_mask = Input(shape=(max_cdr_len,))
 
-    # Adding dropout_U here is a bad idea --- sequences are very short and
-    # all information is essential
-    ab_net_out = Bidirectional(LSTM(128, return_sequences=True),
-                               merge_mode='concat')(input_ab_m)
+    seq = MaskingByLambda(mask_by_input(label_mask))(input_ab)
+    loc_fts = MaskedConvolution1D(28, 3, padding='same', activation='elu',
+                                  kernel_regularizer=l2(0.01))(seq)
 
-    ab_ag_repr = MaskingByLambda(mask_by_input(label_mask))(ab_net_out)
+    fts = add([seq, loc_fts])
 
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
-    model = Model(inputs=[input_ab, label_mask], outputs=aa_probs)
-    model.compile(loss='binary_crossentropy',
-                  optimizer='adam',
-                  metrics=['binary_accuracy', false_pos, false_neg],
-                  sample_weight_mode="temporal")
-    return model
+    glb_fts = Bidirectional(LSTM(256, dropout=0.15, recurrent_dropout=0.2,
+                                 return_sequences=True),
+                            merge_mode='concat')(fts)
 
+    fts = Dropout(0.3)(glb_fts)
+    probs = TimeDistributed(Dense(1, activation='sigmoid',
+                                     kernel_regularizer=l2(0.01)))(fts)
+    model = Model(inputs=[input_ab, label_mask], outputs=probs)
 
-def no_neighbourhood_model(max_ag_len, max_cdr_len):
-    input_ag = Input(shape=(max_ag_len, NUM_FEATURES))
-    input_ag_m = Masking()(input_ag)
-
-    enc_ag = Bidirectional(LSTM(128),
-                           merge_mode='concat')(input_ag_m)
-
-    input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
-    input_ab_m = Masking()(input_ab)
-
-    label_mask = Input(shape=(max_cdr_len,))
-
-    # Adding dropout_U here is a bad idea --- sequences are very short and
-    # all information is essential
-    ab_net_out = Bidirectional(LSTM(128, return_sequences=True),
-                               merge_mode='concat')(input_ab_m)
-
-    enc_ag_rep = RepeatVector(max_cdr_len)(enc_ag)
-    ab_ag_repr = concatenate([ab_net_out, enc_ag_rep])
-    ab_ag_repr = MaskingByLambda(mask_by_input(label_mask))(ab_ag_repr)
-
-    aa_probs = TimeDistributed(Dense(1, activation='sigmoid'))(ab_ag_repr)
-    model = Model(inputs=[input_ag, input_ab, label_mask], outputs=aa_probs)
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',
                   metrics=['binary_accuracy', false_pos, false_neg],

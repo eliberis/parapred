@@ -8,68 +8,78 @@ import numpy as np
 
 
 def single_run():
-    train_set, test_set, params = open_dataset()
+    dataset = open_dataset("data/sabdab_27_jun_95_90.csv")
 
-    max_ag_len = params["max_ag_len"]
-    max_cdr_len = params["max_cdr_len"]
-    pos_class_weight = params["pos_class_weight"]
+    max_cdr_len = dataset["max_cdr_len"]
+    pos_class_weight = dataset["pos_class_weight"]
+    size = len(dataset["cdrs"])
 
-    print("Max AG length:", max_ag_len)
     print("Max CDR length:", max_cdr_len)
     print("Pos class weight:", pos_class_weight)
+    print("Number of structures:", size)
 
-    model = ab_seq_model(params["max_cdr_len"])
+    model = ab_seq_model(max_cdr_len)
     print(model.summary())
 
-    ags_train, cdrs_train, lbls_train, mask_train = train_set
-    ags_test, cdrs_test, lbls_test, mask_test = test_set
-    example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
+    cdrs, lbls, masks = dataset["cdrs"], dataset["lbls"], dataset["masks"]
+
+    np.random.seed(0)  # For reproducibility
+    indices = np.random.permutation(size)
+    test_size = size // 10
+
+    cdrs_train = cdrs[indices[:-test_size]]
+    lbls_train = lbls[indices[:-test_size]]
+    masks_train = masks[indices[:-test_size]]
+
+    cdrs_test = cdrs[indices[-test_size:]]
+    lbls_test = lbls[indices[-test_size:]]
+    masks_test = masks[indices[-test_size:]]
+
+    example_weight = np.squeeze((lbls_train * 1.5 + 1) * masks_train)
+    test_ex_weight = np.squeeze((lbls_test * 1.5 + 1) * masks_test)
 
     rate_schedule = lambda e: 0.001 if e >= 10 else 0.01
 
-    history = model.fit([cdrs_train, np.squeeze(mask_train)],
-                        lbls_train, validation_split=0.15,
-                        batch_size=32, epochs=150,
+    history = model.fit([cdrs_train, np.squeeze(masks_train)],
+                        lbls_train, batch_size=32, epochs=150,
+                        # Just a trial, not actual evaluation.
+                        validation_data=([cdrs_test, np.squeeze(masks_test)],
+                                         lbls_test, test_ex_weight),
                         sample_weight=example_weight,
                         callbacks=[LearningRateScheduler(rate_schedule),
                                    EarlyStopping(verbose=1, patience=3)])
 
-    model.save_weights("abip-sets.h5")
+    model.save_weights("sabdab.h5")
 
-    probs_test = model.predict([cdrs_test, np.squeeze(mask_test)])
+    probs_test = model.predict([cdrs_test, np.squeeze(masks_test)])
 
-    test_seq_lens = np.sum(np.squeeze(mask_test), axis=1)
+    test_seq_lens = np.sum(np.squeeze(masks_test), axis=1)
     probs_flat = flatten_with_lengths(probs_test, test_seq_lens)
     lbls_flat = flatten_with_lengths(lbls_test, test_seq_lens)
 
-    pos_idx = probs_test > 0.5
-    pred_test = np.zeros_like(probs_test)
-    pred_test[pos_idx] = 1
-    pred_flat = flatten_with_lengths(pred_test, test_seq_lens)
-
-    print(confusion_matrix(lbls_flat, pred_flat))
+    compute_classifier_metrics([lbls_flat], [probs_flat], threshold=0.5)
 
     plot_roc_curve(lbls_flat, probs_flat)
     plot_prec_rec_curve([lbls_flat], [probs_flat],
-                        output_filename="abip-sets.pdf")
+                        output_filename="sabdab.pdf")
 
     # plot_stats(history)
     # annotate_and_save_test_structures(probs_test)
 
 
-def crossvalidation_eval():
-    train_set, test_set, params = open_dataset()
-    model_factory = \
-        lambda: ab_seq_model(params["max_cdr_len"])
-    dataset = combine_datasets(train_set, test_set)
-
-    for i in range(10):
-        print("Crossvalidation run", i+1)
-        output_file = "cv-ab-seq/run-{}.p".format(i)
-        weights_template = "cv-ab-seq/weights/run-" + str(i) + "-fold-{}.h5"
-        kfold_cv_eval(model_factory, dataset, output_file, weights_template,
-                      seed=i)
-
+# def crossvalidation_eval():
+#     train_set, test_set, params = open_dataset()
+#     model_factory = \
+#         lambda: ab_seq_model(params["max_cdr_len"])
+#     dataset = combine_datasets(train_set, test_set)
+#
+#     for i in range(10):
+#         print("Crossvalidation run", i+1)
+#         output_file = "cv-ab-seq/run-{}.p".format(i)
+#         weights_template = "cv-ab-seq/weights/run-" + str(i) + "-fold-{}.h5"
+#         kfold_cv_eval(model_factory, dataset, output_file, weights_template,
+#                       seed=i)
+#
 
 def process_cv_results():
     probs = []
@@ -95,37 +105,37 @@ def process_cv_results():
     compute_classifier_metrics(labels, probs, threshold=0.5)
 
 
-def patchdock_prepare():
-    _, test_set, params = open_dataset()
-    model = ab_seq_model(params["max_cdr_len"])
-    model.load_weights("abip-sets.h5")
-
-    ags_test, cdrs_test, lbls_test, mask_test = test_set
-    probs_test = model.predict([ags_test, cdrs_test, np.squeeze(mask_test)])
-
-    contact = lbls_test
-    cdrs = mask_test
-    parapred = probs_test
-
-    for name, probs in [("contact", contact), ("CDR", cdrs), ("parapred", parapred)]:
-        annotate_and_save_test_structures(probs, "annotated/" + name)
-
-
-def patchdock_classify():
-    print("CDR results")
-    print(capri_evaluate_test_structures("results/CDR"))
-    # Top 10: {'high': 1, 'med': 2, 'low': 0}
-    # Top 200: {'high': 1, 'med': 14, 'low': 1}
-
-    print("Parapred results")
-    print(capri_evaluate_test_structures("results/parapred"))
-    # Top 10: {'high': 1, 'med': 8, 'low': 0}
-    # Top 200: {'high': 1, 'med': 20, 'low': 2}
-
-    print("Contact results")
-    print(capri_evaluate_test_structures("results/contact"))
-    # Top 10: {'high': 1, 'med': 7, 'low': 1}
-    # Top 200: {'high': 1, 'med': 22, 'low': 3}
+# def patchdock_prepare():
+#     _, test_set, params = open_dataset()
+#     model = ab_seq_model(params["max_cdr_len"])
+#     model.load_weights("abip-sets.h5")
+#
+#     ags_test, cdrs_test, lbls_test, mask_test = test_set
+#     probs_test = model.predict([ags_test, cdrs_test, np.squeeze(mask_test)])
+#
+#     contact = lbls_test
+#     cdrs = mask_test
+#     parapred = probs_test
+#
+#     for name, probs in [("contact", contact), ("CDR", cdrs), ("parapred", parapred)]:
+#         annotate_and_save_test_structures(probs, "annotated/" + name)
+#
+#
+# def patchdock_classify():
+#     print("CDR results")
+#     print(capri_evaluate_test_structures("results/CDR"))
+#     # Top 10: {'high': 1, 'med': 2, 'low': 0}
+#     # Top 200: {'high': 1, 'med': 14, 'low': 1}
+#
+#     print("Parapred results")
+#     print(capri_evaluate_test_structures("results/parapred"))
+#     # Top 10: {'high': 1, 'med': 8, 'low': 0}
+#     # Top 200: {'high': 1, 'med': 20, 'low': 2}
+#
+#     print("Contact results")
+#     print(capri_evaluate_test_structures("results/contact"))
+#     # Top 10: {'high': 1, 'med': 7, 'low': 1}
+#     # Top 200: {'high': 1, 'med': 22, 'low': 3}
 
 if __name__ == "__main__":
-    process_cv_results()
+    single_run()

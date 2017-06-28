@@ -1,5 +1,4 @@
 from data_provider import *
-from structure_processor import *
 from evaluation import *
 from model import *
 from plotting import *
@@ -67,24 +66,23 @@ def single_run():
     # annotate_and_save_test_structures(probs_test)
 
 
-# def crossvalidation_eval():
-#     train_set, test_set, params = open_dataset()
-#     model_factory = \
-#         lambda: ab_seq_model(params["max_cdr_len"])
-#     dataset = combine_datasets(train_set, test_set)
-#
-#     for i in range(10):
-#         print("Crossvalidation run", i+1)
-#         output_file = "cv-ab-seq/run-{}.p".format(i)
-#         weights_template = "cv-ab-seq/weights/run-" + str(i) + "-fold-{}.h5"
-#         kfold_cv_eval(model_factory, dataset, output_file, weights_template,
-#                       seed=i)
-#
+def crossvalidation_eval():
+    dataset = open_dataset("data/sabdab_27_jun_95_90.csv")
+    model_factory = \
+        lambda: ab_seq_model(dataset["max_cdr_len"])
+
+    for i in range(10):
+        print("Crossvalidation run", i+1)
+        output_file = "cv-ab-seq/run-{}.p".format(i)
+        weights_template = "cv-ab-seq/weights/run-" + str(i) + "-fold-{}.h5"
+        kfold_cv_eval(model_factory, dataset,
+                      output_file, weights_template, seed=i)
+
 
 def process_cv_results():
     probs = []
     labels = []
-    for r in range(1):
+    for r in range(8):
         result_filename = "cv-ab-seq/run-{}.p".format(r)
         with open(result_filename, "rb") as f:
             lbl_mat, prob_mat, mask_mat = pickle.load(f)
@@ -138,4 +136,4 @@ def process_cv_results():
 #     # Top 200: {'high': 1, 'med': 22, 'low': 3}
 
 if __name__ == "__main__":
-    single_run()
+    process_cv_results()

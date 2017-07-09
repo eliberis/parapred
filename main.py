@@ -66,6 +66,23 @@ def single_run():
     # annotate_and_save_test_structures(probs_test)
 
 
+def full_run():
+    dataset = open_dataset("data/sabdab_27_jun_95_90.csv")
+    cdrs, lbls, masks = dataset["cdrs"], dataset["lbls"], dataset["masks"]
+
+    sample_weight = np.squeeze((lbls * 1.5 + 1) * masks)
+    model = ab_seq_model(dataset["max_cdr_len"])
+
+    rate_schedule = lambda e: 0.001 if e >= 10 else 0.01
+
+    model.fit([cdrs, np.squeeze(masks)],
+              lbls, batch_size=32, epochs=16,
+              sample_weight=sample_weight,
+              callbacks=[LearningRateScheduler(rate_schedule)])
+
+    model.save_weights("weights.h5")
+
+
 def crossvalidation_eval():
     dataset = open_dataset("data/sabdab_27_jun_95_90.csv")
     model_factory = \
@@ -136,4 +153,4 @@ def process_cv_results():
 #     # Top 200: {'high': 1, 'med': 22, 'low': 3}
 
 if __name__ == "__main__":
-    process_cv_results()
+    full_run()

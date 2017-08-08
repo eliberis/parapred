@@ -3,9 +3,8 @@ import pandas as pd
 from os.path import isfile
 from structure_processor import *
 
-PDBS = "data/pdbs/{0}_ch.pdb"
+PDBS = "data/pdbs/{0}.pdb"
 MAX_CDR_LEN = 31  # For padding
-DATASET_PICKLE = "processed-dataset.p"
 
 
 def load_chains(dataset_desc_filename):
@@ -72,15 +71,15 @@ def compute_entries(summary_file):
     }
 
 
-def open_dataset(summary_file):
-    if isfile(DATASET_PICKLE):
+def open_dataset(summary_file, dataset_cache="processed-dataset.p"):
+    if isfile(dataset_cache):
         print("Precomputed dataset found, loading...")
-        with open(DATASET_PICKLE, "rb") as f:
+        with open(dataset_cache, "rb") as f:
             dataset = pickle.load(f)
     else:
         print("Computing and storing the dataset...")
         dataset = compute_entries(summary_file)
-        with open(DATASET_PICKLE, "wb") as f:
+        with open(dataset_cache, "wb") as f:
             pickle.dump(dataset, f)
 
     return dataset

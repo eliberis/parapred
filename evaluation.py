@@ -7,7 +7,7 @@ from structure_processor import save_chain, save_structure, \
 from patchdock_tools import output_patchdock_ab_constraint, \
     output_patchdock_ag_constraint, process_transformations
 from keras.callbacks import LearningRateScheduler, EarlyStopping
-from sklearn.metrics import confusion_matrix, roc_auc_score
+from sklearn.metrics import confusion_matrix, roc_auc_score, matthews_corrcoef
 
 AB_STRUCT_SAVE_PATH = "data/{0}/{1}_AB.pdb"
 AG_STRUCT_SAVE_PATH = "data/{0}/{1}_AG.pdb"
@@ -63,20 +63,19 @@ def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
             cdrs[test_idx], lbls[test_idx], masks[test_idx]
 
         example_weight = np.squeeze((lbls_train * 1.5 + 1) * mask_train)
-        test_ex_weight = np.squeeze((lbls_test * 1.5 + 1) * mask_test)
+        # test_ex_weight = np.squeeze((lbls_test * 1.5 + 1) * mask_test)
         model = model_func()
 
         rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
 
         model.fit([cdrs_train, np.squeeze(mask_train)],
-                  lbls_train, batch_size=32, epochs=150,
+                  lbls_train, batch_size=32, epochs=16,
                   # For informational purposes about the best number of epochs
                   # TODO: replace for proper evaluation
-                  validation_data=([cdrs_test, np.squeeze(mask_test)],
-                                   lbls_test, test_ex_weight),
+                  # validation_data=([cdrs_test, np.squeeze(mask_test)],
+                  #                  lbls_test, test_ex_weight),
                   sample_weight=example_weight,
-                  callbacks=[LearningRateScheduler(rate_schedule),
-                             EarlyStopping(verbose=1, patience=3)])
+                  callbacks=[LearningRateScheduler(rate_schedule)])
 
         model.save_weights(weights_template.format(i))
 
@@ -104,11 +103,13 @@ def flatten_with_lengths(matrix, lengths):
 def compute_classifier_metrics(labels, probs, threshold=0.5):
     matrices = []
     aucs = []
+    mcorrs = []
 
     for l, p in zip(labels, probs):
         aucs.append(roc_auc_score(l, p))
         l_pred = (p > threshold).astype(int)
         matrices.append(confusion_matrix(l, l_pred))
+        mcorrs.append(matthews_corrcoef(l, l_pred))
 
     matrices = np.stack(matrices)
     mean_conf = np.mean(matrices, axis=0)
@@ -134,6 +135,10 @@ def compute_classifier_metrics(labels, probs, threshold=0.5):
     auc = np.mean(auc_scores)
     auc_err = 2 * np.std(auc_scores)
 
+    mcorr_scores = np.array(mcorrs)
+    mcorr = np.mean(mcorr_scores)
+    mcorr_err = 2 * np.std(mcorr_scores)
+
     print("Mean confusion matrix and error")
     print(mean_conf)
     print(errs_conf)
@@ -142,3 +147,30 @@ def compute_classifier_metrics(labels, probs, threshold=0.5):
     print("Precision = {} +/- {}".format(prec, prec_err))
     print("F-score = {} +/- {}".format(fsc, fsc_err))
     print("ROC AUC = {} +/- {}".format(auc, auc_err))
+    print("MCC = {} +/- {}".format(mcorr, mcorr_err))
+
+
+def open_crossval_results(folder="cv-ab-seq", num_results=10, loop_filter=None):
+    class_probabilities = []
+    labels = []
+
+    for r in range(num_results):
+        result_filename = "{}/run-{}.p".format(folder, r)
+        with open(result_filename, "rb") as f:
+            lbl_mat, prob_mat, mask_mat = pickle.load(f)
+
+        # Get entries corresponding to the given loop
+        if loop_filter is not None:
+            lbl_mat = lbl_mat[loop_filter::6]
+            prob_mat = prob_mat[loop_filter::6]
+            mask_mat = mask_mat[loop_filter::6]
+
+        # Discard sequence padding
+        seq_lens = np.sum(np.squeeze(mask_mat), axis=1)
+        p = flatten_with_lengths(prob_mat, seq_lens)
+        l = flatten_with_lengths(lbl_mat, seq_lens)
+
+        class_probabilities.append(p)
+        labels.append(l)
+
+    return labels, class_probabilities

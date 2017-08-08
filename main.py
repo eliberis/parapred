@@ -4,6 +4,7 @@ from model import *
 from plotting import *
 from keras.callbacks import LearningRateScheduler, EarlyStopping
 import numpy as np
+from os import makedirs
 
 
 def single_run():
@@ -58,13 +59,6 @@ def single_run():
 
     compute_classifier_metrics([lbls_flat], [probs_flat], threshold=0.5)
 
-    plot_roc_curve(lbls_flat, probs_flat)
-    plot_prec_rec_curve([lbls_flat], [probs_flat],
-                        output_filename="sabdab.pdf")
-
-    # plot_stats(history)
-    # annotate_and_save_test_structures(probs_test)
-
 
 def full_run():
     dataset = open_dataset("data/sabdab_27_jun_95_90.csv")
@@ -83,40 +77,59 @@ def full_run():
     model.save_weights("weights.h5")
 
 
-def crossvalidation_eval():
-    dataset = open_dataset("data/sabdab_27_jun_95_90.csv")
-    model_factory = \
-        lambda: ab_seq_model(dataset["max_cdr_len"])
+def run_cv(dataset="data/sabdab_27_jun_95_90.csv",
+           output_folder="cv-ab-seq",
+           num_iters=10):
+    cache_file = dataset.split("/")[-1] + ".p"
+    dataset = open_dataset(dataset, dataset_cache=cache_file)
+    model_factory = lambda: ab_seq_model(dataset["max_cdr_len"])
 
-    for i in range(10):
+    makedirs(output_folder + "/weights")
+    for i in range(num_iters):
         print("Crossvalidation run", i+1)
-        output_file = "cv-ab-seq/run-{}.p".format(i)
-        weights_template = "cv-ab-seq/weights/run-" + str(i) + "-fold-{}.h5"
+        output_file = "{}/run-{}.p".format(output_folder, i)
+        weights_template = output_folder + "/weights/run-" + \
+                           str(i) + "-fold-{}.h5"
         kfold_cv_eval(model_factory, dataset,
                       output_file, weights_template, seed=i)
 
 
 def process_cv_results():
-    probs = []
-    labels = []
-    for r in range(8):
-        result_filename = "cv-ab-seq/run-{}.p".format(r)
-        with open(result_filename, "rb") as f:
-            lbl_mat, prob_mat, mask_mat = pickle.load(f)
+    import matplotlib.pyplot as plt
+    plt.rcParams["font.family"] = "Times New Roman"
 
-        seq_lens = np.sum(np.squeeze(mask_mat), axis=1)
-        p = flatten_with_lengths(prob_mat, seq_lens)
-        l = flatten_with_lengths(lbl_mat, seq_lens)
+    # Plot ROC per loop type
+    fig = None
+    cols = [("#D6083B", "#EB99A9"),
+            ("#0072CF", "#68ACE5"),
+            ("#EA7125", "#F3BD48"),
+            ("#55A51C", "#AAB300"),
+            ("#8F2BBC", "#AF95A3"),
+            ("#00B1C1", "#91B9A4")]
 
-        plot_roc_curve(l, p, plot_name="ROC", output_filename="roc.pdf")
+    for i, loop in enumerate(["H1", "H2", "H3", "L1", "L2", "L3"]):
+        print("Plotting ROC for loop type", loop)
+        labels, probs = open_crossval_results("cv-ab-seq", 10, i)
+        fig = plot_roc_curve(labels, probs, label=loop,
+                             colours=cols[i], plot_fig=fig)
 
-        probs.append(p)
-        labels.append(l)
+    fig.gca().set_title("ROC curves per loop type")
+    fig.savefig("roc.pdf")
 
-    plot_prec_rec_curve(labels, probs,
-                        plot_name="PR curve for the antibody sequence-only model",
-                        output_filename="seq-only.pdf")
+    # Plot PR curves
+    print("Plotting PR curves")
+    labels, probs = open_crossval_results("cv-ab-seq", 10)
+    labels_abip, probs_abip = open_crossval_results("cv-ab-seq-abip", 10)
 
+    fig = plot_pr_curve(labels, probs, colours=("#0072CF", "#68ACE5"),
+                        label="Our model")
+    fig = plot_pr_curve(labels_abip, probs_abip, colours=("#D6083B", "#EB99A9"),
+                        label="Our model using ABiP data", plot_fig=fig)
+    fig = plot_abip_pr(fig)
+    fig.savefig("pr.pdf")
+
+    # Computing overall classifier metrics
+    print("Computing classifier metrics")
     compute_classifier_metrics(labels, probs, threshold=0.5)
 
 
@@ -153,4 +166,4 @@ def process_cv_results():
 #     # Top 200: {'high': 1, 'med': 22, 'low': 3}
 
 if __name__ == "__main__":
-    full_run()
+    run_cv(output_folder="cv-test")

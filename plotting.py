@@ -33,12 +33,11 @@ def plot_stats(history, plot_filename="stats.pdf"):
     plt.savefig(plot_filename)
 
 
-def plot_prec_rec_curve(labels_test, probs_test, plot_name="",
-                        output_filename="proc.pdf"):
-    plt.figure(figsize=(4.5, 3.5))
-
-    plt.rc('text', usetex=True)
-    plt.rc('font', family='sans-serif')
+def plot_pr_curve(labels_test, probs_test, colours=("#0072CF", "#68ACE5"),
+                  label="This method", plot_fig=None):
+    if plot_fig is None:
+        plot_fig = plt.figure(figsize=(4.5, 3.5), dpi=300)
+    ax = plot_fig.gca()
 
     num_runs = len(labels_test)
     precs = np.zeros((num_runs, 10000))
@@ -66,46 +65,81 @@ def plot_prec_rec_curve(labels_test, probs_test, plot_name="",
     avg_prec = np.average(precs, axis=0)
     err_prec = np.std(precs, axis=0)
 
-    plt.plot(recalls, avg_prec, c="#0072CF", label="This method")
+    ax.plot(recalls, avg_prec, c=colours[0], label=label)
 
-    btm_err = avg_prec-2*err_prec
+    btm_err = avg_prec - 2 * err_prec
     btm_err[btm_err < 0.0] = 0.0
-    top_err = avg_prec+2*err_prec
+    top_err = avg_prec + 2 * err_prec
     top_err[top_err > 1.0] = 1.0
 
-    plt.fill_between(recalls, btm_err, top_err, facecolor="#68ACE5")
+    ax.fill_between(recalls, btm_err, top_err, facecolor=colours[1])
+
+    ax.set_ylabel("Precision")
+    ax.set_xlabel("Recall")
+    ax.legend()
+
+    return plot_fig
+
+
+def plot_abip_pr(plot_fig=None):
+    if plot_fig is None:
+        plot_fig = plt.figure(figsize=(4.5, 3.5), dpi=300)
+    ax = plot_fig.gca()
 
     abip_rec = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.92])
-    abip_pre = \
-        np.array([0.77, 0.74, 0.66, 0.61, 0.56, 0.51, 0.50, 0.48, 0.44, 0.415])
-    abip_std = \
-        np.array([0.06, 0.04, 0.031, 0.028, 0.026, 0.023, 0.02, 0.015, 0.013, 0.012])
+    abip_pre = np.array([0.77, 0.74, 0.66, 0.61, 0.56,
+                         0.51, 0.50, 0.48, 0.44, 0.415])
+    abip_std = np.array([0.06, 0.04, 0.031, 0.028, 0.026,
+                         0.023, 0.02, 0.015, 0.013, 0.012])
 
-    plt.scatter(abip_rec, abip_pre, c='#EA7125', s=10, label="Antibody i-Patch")
-    plt.errorbar(abip_rec, abip_pre, yerr=2*abip_std, c="#EA7125")
+    ax.errorbar(abip_rec, abip_pre, yerr=2 * abip_std, label="Antibody i-Patch",
+                fmt='o', mfc="#EA7125", mec="#EA7125", ms=3,
+                ecolor="#F3BD48", elinewidth=1, capsize=3)
 
-    plt.ylabel("Precision")
-    plt.xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_xlabel("Recall")
+    ax.legend()
 
-    plt.title(plot_name)
-    plt.legend()
-    plt.savefig(output_filename)
+    return plot_fig
 
 
-def plot_roc_curve(labels_test, probs_test, plot_name="ROC Curve",
-                   output_filename="roc.pdf"):
-    plt.figure(figsize=(3.5, 3.5))
+def plot_roc_curve(labels_test, probs_test, colours=("#0072CF", "#68ACE5"),
+                   label="This method", plot_fig=None):
+    if plot_fig is None:
+        plot_fig = plt.figure(figsize=(3.7, 3.7), dpi=400)
+    ax = plot_fig.gca()
 
-    fpr, tpr, thresholds = \
-        metrics.roc_curve(labels_test.flatten(), probs_test.flatten())
+    num_runs = len(labels_test)
+    tprs = np.zeros((num_runs, 10000))
+    fprs = np.linspace(0.0, 1.0, num=10000)
 
-    plt.rc('text', usetex=True)
-    plt.rc('font', family='sans-serif')
+    for i in range(num_runs):
+        l = labels_test[i]
+        p = probs_test[i]
 
-    plt.plot(fpr, tpr, c="#0072CF", label="ParaPred")
+        fpr, tpr, _ = metrics.roc_curve(l.flatten(), p.flatten())
 
-    plt.ylabel("True positive rate")
-    plt.xlabel("False positive rate")
+        for j, fpr_val in enumerate(fprs):  # Inefficient, but good enough
+            for t, f in zip(tpr, fpr):
+                if f >= fpr_val:
+                    tprs[i, j] = t
+                    break
 
-    plt.title(plot_name)
-    plt.savefig(output_filename)
+    avg_tpr = np.average(tprs, axis=0)
+    err_tpr = np.std(tprs, axis=0)
+
+    ax.plot(fprs, avg_tpr, c=colours[0], label=label)
+
+    btm_err = avg_tpr - 2 * err_tpr
+    btm_err[btm_err < 0.0] = 0.0
+    top_err = avg_tpr + 2 * err_tpr
+    top_err[top_err > 1.0] = 1.0
+
+    ax.fill_between(fprs, btm_err, top_err, facecolor=colours[1])
+
+    ax.set_ylabel("True positive rate")
+    ax.set_xlabel("False positive rate")
+
+    ax.legend()
+
+    return plot_fig

@@ -28,7 +28,7 @@ def _write_pd_constraint(f, chain_id, res):
 
 
 def output_patchdock_ab_constraint(structure, filename="ab-patchdock.txt",
-                                   cutoff=50.00):
+                                   cutoff=67.00):
     model = structure[0]
     with open(filename, "w") as f:
         for chain in model.get_chains():

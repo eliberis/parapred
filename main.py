@@ -5,6 +5,7 @@ from plotting import *
 from keras.callbacks import LearningRateScheduler, EarlyStopping
 import numpy as np
 from os import makedirs
+from os.path import isfile
 
 
 def single_run():
@@ -60,8 +61,9 @@ def single_run():
     compute_classifier_metrics([lbls_flat], [probs_flat], threshold=0.5)
 
 
-def full_run():
-    dataset = open_dataset("data/sabdab_27_jun_95_90.csv")
+def full_run(dataset="data/sabdab_27_jun_95_90.csv", out_weights="weights.h5"):
+    cache_file = dataset.split("/")[-1] + ".p"
+    dataset = open_dataset(dataset, dataset_cache=cache_file)
     cdrs, lbls, masks = dataset["cdrs"], dataset["lbls"], dataset["masks"]
 
     sample_weight = np.squeeze((lbls * 1.5 + 1) * masks)
@@ -74,7 +76,7 @@ def full_run():
               sample_weight=sample_weight,
               callbacks=[LearningRateScheduler(rate_schedule)])
 
-    model.save_weights("weights.h5")
+    model.save_weights(out_weights)
 
 
 def run_cv(dataset="data/sabdab_27_jun_95_90.csv",
@@ -133,37 +135,44 @@ def process_cv_results():
     compute_classifier_metrics(labels, probs, threshold=0.5)
 
 
-# def patchdock_prepare():
-#     _, test_set, params = open_dataset()
-#     model = ab_seq_model(params["max_cdr_len"])
-#     model.load_weights("abip-sets.h5")
-#
-#     ags_test, cdrs_test, lbls_test, mask_test = test_set
-#     probs_test = model.predict([ags_test, cdrs_test, np.squeeze(mask_test)])
-#
-#     contact = lbls_test
-#     cdrs = mask_test
-#     parapred = probs_test
-#
-#     for name, probs in [("contact", contact), ("CDR", cdrs), ("parapred", parapred)]:
-#         annotate_and_save_test_structures(probs, "annotated/" + name)
-#
-#
-# def patchdock_classify():
-#     print("CDR results")
-#     print(capri_evaluate_test_structures("results/CDR"))
-#     # Top 10: {'high': 1, 'med': 2, 'low': 0}
-#     # Top 200: {'high': 1, 'med': 14, 'low': 1}
-#
-#     print("Parapred results")
-#     print(capri_evaluate_test_structures("results/parapred"))
-#     # Top 10: {'high': 1, 'med': 8, 'low': 0}
-#     # Top 200: {'high': 1, 'med': 20, 'low': 2}
-#
-#     print("Contact results")
-#     print(capri_evaluate_test_structures("results/contact"))
-#     # Top 10: {'high': 1, 'med': 7, 'low': 1}
-#     # Top 200: {'high': 1, 'med': 22, 'low': 3}
+def patchdock_prepare():
+    model_weights = "dock-weights.h5"
+    if not isfile(model_weights):
+        full_run("data/dock_train.csv", model_weights)
+
+    dataset = open_dataset("data/dock_test.csv", "dock_test.csv.p")
+    model = ab_seq_model(dataset["max_cdr_len"])
+    model.load_weights(model_weights)
+
+    cdrs, lbls, masks = dataset["cdrs"], dataset["lbls"], dataset["masks"]
+    probs = model.predict([cdrs, np.squeeze(masks)])
+
+    contact = lbls
+    cdrs = masks
+    parapred = probs
+
+    for name, probs in [("contact", contact), ("CDR", cdrs), ("parapred", parapred)]:
+        print("Annotating structures with {} data".format(name))
+        makedirs("annotated/" + name)
+        annotate_and_save_test_structures("data/dock_test.csv", probs,
+                                          "annotated/" + name)
+
+
+
+def patchdock_classify():
+    # Strip everything but coordinates from PatchDock output using:
+    # for f in *; do cat $f | cut -d '|' -f 14- |  grep '^ '  |
+    #     grep -v "Ligand" | head -n 200 > $f; done
+
+    print("CDR results")
+    print(capri_evaluate_test_structures("data/dock_test.csv", "results/CDR"))
+
+    print("Contact results")
+    print(capri_evaluate_test_structures("data/dock_test.csv", "results/contact"))
+
+    print("Parapred results")
+    print(capri_evaluate_test_structures("data/dock_test.csv", "results/bla"))
+
 
 if __name__ == "__main__":
-    run_cv(output_folder="cv-test")
+    full_run()

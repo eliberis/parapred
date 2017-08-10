@@ -28,7 +28,10 @@ def load_chains(dataset_desc_filename):
 
         ag_search = NeighborSearch(ag_atoms)
 
-        yield ag_search, model[ab_h_chain], model[ab_l_chain], pdb_name
+        ag_chain_struct = None if "|" in ag_chain else model[ag_chain]
+
+        yield ag_search, model[ab_h_chain], model[ab_l_chain], \
+              ag_chain_struct, pdb_name
 
 
 def process_dataset(summary_file):
@@ -39,7 +42,7 @@ def process_dataset(summary_file):
     all_lbls = []
     all_masks = []
 
-    for ag_search, ab_h_chain, ab_l_chain, pdb in load_chains(summary_file):
+    for ag_search, ab_h_chain, ab_l_chain, _, pdb in load_chains(summary_file):
         print("Processing PDB: ", pdb)
 
         cdrs, lbls, cdr_mask, (nic, nr) =\

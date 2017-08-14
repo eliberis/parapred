@@ -158,7 +158,6 @@ def patchdock_prepare():
                                           "annotated/" + name)
 
 
-
 def patchdock_classify():
     # Strip everything but coordinates from PatchDock output using:
     # for f in *; do cat $f | cut -d '|' -f 14- |  grep '^ '  |
@@ -174,5 +173,25 @@ def patchdock_classify():
     print(capri_evaluate_test_structures("data/dock_test.csv", "results/bla"))
 
 
+def show_binding_profiles():
+    labels, probs = open_crossval_results(flatten_by_lengths=False)
+    labels = labels[0]  # Labels are constant, any of the 10 runs would do
+    probs = np.stack(probs).mean(axis=0)  # Mean binding probability across runs
+
+    contact = binding_profile("data/sabdab_27_jun_95_90.csv", labels)
+    print("Contact per-residue binding profile:")
+    total = sum(list(contact.values()))
+    contact = {k: v / total for k, v in contact.items()}
+    print(contact)
+
+    parapred = binding_profile("data/sabdab_27_jun_95_90.csv", probs)
+    print("Model's predictions' per-residue binding profile:")
+    total = sum(list(parapred.values()))
+    parapred = {k: v / total for k, v in parapred.items()}
+    print(parapred)
+
+    plot_binding_profiles(contact, parapred)
+
+
 if __name__ == "__main__":
-    full_run()
+    show_binding_profiles()

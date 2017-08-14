@@ -3,7 +3,8 @@ import pickle
 from sklearn.model_selection import KFold
 from data_provider import load_chains
 from structure_processor import save_chain, save_structure, \
-    produce_annotated_ab_structure, extended_epitope
+    produce_annotated_ab_structure, extended_epitope, extract_cdrs, \
+    residue_seq_to_one, aa_s
 from patchdock_tools import output_patchdock_ab_constraint, \
     output_patchdock_ag_constraint, process_transformations
 from keras.callbacks import LearningRateScheduler, EarlyStopping
@@ -152,7 +153,8 @@ def compute_classifier_metrics(labels, probs, threshold=0.5):
     print("MCC = {} +/- {}".format(mcorr, mcorr_err))
 
 
-def open_crossval_results(folder="cv-ab-seq", num_results=10, loop_filter=None):
+def open_crossval_results(folder="runs/cv-ab-seq", num_results=10,
+                          loop_filter=None, flatten_by_lengths=True):
     class_probabilities = []
     labels = []
 
@@ -167,6 +169,11 @@ def open_crossval_results(folder="cv-ab-seq", num_results=10, loop_filter=None):
             prob_mat = prob_mat[loop_filter::6]
             mask_mat = mask_mat[loop_filter::6]
 
+        if not flatten_by_lengths:
+            class_probabilities.append(prob_mat)
+            labels.append(lbl_mat)
+            continue
+
         # Discard sequence padding
         seq_lens = np.sum(np.squeeze(mask_mat), axis=1)
         p = flatten_with_lengths(prob_mat, seq_lens)
@@ -176,3 +183,26 @@ def open_crossval_results(folder="cv-ab-seq", num_results=10, loop_filter=None):
         labels.append(l)
 
     return labels, class_probabilities
+
+
+def binding_profile(summary_file, probs, threshold=0.5): # 0.565
+    binding_prof = {r : 0 for r in aa_s}
+
+    for i, (_, ab_h_chain, ab_l_chain, _, pdb) in \
+            enumerate(load_chains(summary_file)):
+        print("Processing", pdb)
+
+        # Extract CDRs
+        cdrs = {}
+        cdrs.update(extract_cdrs(ab_h_chain, ["H1", "H2", "H3"]))
+        cdrs.update(extract_cdrs(ab_l_chain, ["L1", "L2", "L3"]))
+
+        p_struct = probs[6*i:6*(i+1)]
+        for j, cdr_name in enumerate(["H1", "H2", "H3", "L1", "L2", "L3"]):
+            p_cdr = p_struct[j]
+            res = residue_seq_to_one(cdrs[cdr_name])
+            for k, r in enumerate(res):
+                if p_cdr[k] > threshold:
+                    binding_prof[r] += 1
+
+    return binding_prof

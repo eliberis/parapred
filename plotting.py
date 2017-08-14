@@ -143,3 +143,28 @@ def plot_roc_curve(labels_test, probs_test, colours=("#0072CF", "#68ACE5"),
     ax.legend()
 
     return plot_fig
+
+
+def plot_binding_profiles(contact, parapred, colours=("#0072CF", "#D6083B"),
+                          save_as="binding_profiles.pdf"):
+    plt.rcParams["font.family"] = "Times New Roman"
+
+    plot_fig = plt.figure(figsize=(4.8, 3.7), dpi=400)
+    ax = plot_fig.gca()
+
+    # Is order in contact and parapred values always the same?
+    ind = np.arange(len(contact.keys()))
+    width = 0.35
+
+    ax.bar(ind, np.array(list(contact.values())), width,
+            color=colours[0], label='Contact')
+    ax.bar(ind + width, np.array(list(parapred.values())), width,
+            color=colours[1], label='Model\'s predictions')
+
+    ax.set_ylabel('Relative binding frequency')
+    ax.set_title('Residue type binding profile')
+    ax.set_xticks(ind + width / 2)
+    ax.set_xticklabels(contact.keys())
+
+    plt.legend()
+    plt.savefig(save_as)

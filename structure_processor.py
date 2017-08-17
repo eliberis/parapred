@@ -1,7 +1,6 @@
 from Bio.PDB import *
 from Bio.PDB.Model import Model
 from Bio.PDB.Structure import Structure
-from keras.utils.np_utils import to_categorical
 import numpy as np
 
 # Config constants
@@ -97,6 +96,7 @@ def aa_features():
 
 
 def seq_to_one_hot(res_seq_one):
+    from keras.utils.np_utils import to_categorical
     ints = one_to_number(res_seq_one)
     feats = aa_features()[ints]
     onehot = to_categorical(ints, num_classes=len(aa_s))

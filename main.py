@@ -170,7 +170,7 @@ def patchdock_classify():
     print(capri_evaluate_test_structures("data/dock_test.csv", "results/contact"))
 
     print("Parapred results")
-    print(capri_evaluate_test_structures("data/dock_test.csv", "results/bla"))
+    print(capri_evaluate_test_structures("data/dock_test.csv", "results/parapred"))
 
 
 def show_binding_profiles():

@@ -1,12 +1,13 @@
 from distutils.core import setup
 
 setup(
-    name='paratope-pred',
-    version='',
+    name='parapred',
+    version='1.0',
     packages=[''],
-    url='https://github.com/eliberis/paratope-pred',
+    url='https://github.com/eliberis/parapred',
     license='',
     author='E Liberis',
     author_email='el398@cam.ac.uk',
-    description='Paratope prediction'
+    description='Paratope prediction',
+    scripts=['bin/parapred']
 )

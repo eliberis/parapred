@@ -117,13 +117,12 @@ def process_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id):
 
     probs = predict_sequence_probabilities(seqs)
 
-    structure = produce_annotated_ab_structure(ab_h_chain, ab_l_chain, probs)
+    structure = produce_annotated_ab_structure(ab_h_chain, ab_l_chain,
+                                               np.expand_dims(probs, -1))
     save_structure(structure, pdb_file)
 
 
 def process_multiple_pdbs(pdb_descr_file, pdb_folder):
-    folder = Path(pdb_folder) if pdb_folder != "." else Path()
-
     df = read_csv(pdb_descr_file)
     columns = list(df)
     if any(name not in columns for name in ["pdb", "Hchain", "Lchain"]):
@@ -139,8 +138,8 @@ def process_multiple_pdbs(pdb_descr_file, pdb_folder):
         if not pdb_name.endswith(".pdb"):
             pdb_name = pdb_name + ".pdb"
 
-        pdb_file = folder / pdb_name
-        process_single_pdb(pdb_file.open(), ab_h_chain_id, ab_l_chain_id)
+        pdb_file = pdb_folder + "/" + pdb_name
+        process_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id)
 
 
 def process_sequences(seqs):
@@ -170,7 +169,7 @@ def process_cdr_sequences(cdr_file):
 
 
 def main():
-    arguments = docopt(__doc__, version='ParaPred v1')
+    arguments = docopt(__doc__, version='Parapred v1')
     if arguments["pdb"]:
         if arguments["<pdb_file>"]:
             process_single_pdb(arguments["<pdb_file>"],

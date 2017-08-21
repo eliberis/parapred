@@ -48,9 +48,9 @@ Options:
                                on either side, outputs binding probabilities for each residue.
   --cdr-list <cdr_file>        List containing CDR amino acid sequences, one per line.
 """
+from __future__ import print_function
+
 from docopt import docopt
-from functools import lru_cache
-from pathlib import Path
 from pandas import read_csv
 import numpy as np
 
@@ -61,13 +61,16 @@ from structure_processor import get_structure_from_pdb, extract_cdrs, \
 MAX_CDR_LEN = 31
 WEIGHTS = "weights.h5"
 
+_model = None
 
-@lru_cache(maxsize=1)  # Yes, a singleton.
+
 def get_predictor():
+    global _model
     from model import ab_seq_model
-    model = ab_seq_model(MAX_CDR_LEN)
-    model.load_weights("weights.h5")
-    return model
+    if _model is None:
+        _model = ab_seq_model(MAX_CDR_LEN)
+        _model.load_weights("weights.h5")
+    return _model
 
 
 def predict_sequence_probabilities(seqs):

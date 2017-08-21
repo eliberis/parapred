@@ -5,7 +5,17 @@ Parapred works on parts of antibody's amino acid sequence that correspond to the
 CDR and two extra residues on the either side of it. The program will output
 binding probability for every residue in the input. The program accepts two
 kinds of input (see usage section below for examples):
-(a) A Chothia-numbered PDB file together with antibody's heavy and light chain
+
+(a) The full sequence of a VH or VL domain, or a larger stretch of the sequence
+    of either the heavy or light chain comprising the CDR loops. (requires the
+    additional module anarci for Chothia numbering of sequences, available at
+    http://opig.stats.ox.ac.uk/webapps/sabdab-sabpred/ANARCI.php).
+    Command example: `parapred seq DIEMTQSPSSLSASVGDRVTITCR...`
+
+(b) A fasta file with various antibody sequences, either light or heavy chains
+    (requires anarci http://opig.stats.ox.ac.uk/webapps/sabdab-sabpred/ANARCI.php)
+
+(c) A Chothia-numbered PDB file together with antibody's heavy and light chain
     IDs (provided using `--abh` and `--abl` options). The program will overwrite
     the B-factor value in the PDB to a residue's binding probability.
 
@@ -22,13 +32,15 @@ kinds of input (see usage section below for examples):
     containing PDB files can be specified using the `--pdb-folder` option
     (defaults to the current directory).
 
-(b) An amino acid sequence corresponding to a CDR w/ 2 extra residues on either
-    side, e.g. `parapred cdr ARSGYYGDSDWYFDVGG`.
+(d) An amino acid sequence corresponding to a CDR with 2 extra residues on
+    either side, e.g. `parapred cdr ARSGYYGDSDWYFDVGG`.
 
-    Multiple sequences can be processed at once by specifying a file, containing
-    each sequence on a separate line (using the `--cdr-list` option).
+    Multiple CDR sequences can be processed at once by specifying a file,
+    containing each sequence on a separate line (using the `--cdr-list` option).
 
 Usage:
+  parapred seq <sequence>
+  parapred fasta <fasta_file>
   parapred pdb <pdb_file> [--abh <ab_h_chain_id>] [--abl <ab_l_chain_id>]
   parapred pdb --pdb-list <pdb_descr_file> [--pdb-folder=<path>]
   parapred cdr <cdr_seq>
@@ -37,6 +49,11 @@ Usage:
 
 Options:
   -h --help                    Show this help.
+  seq                          Takes the full amino acid sequence of a VH or VL
+                               domain (requires anarci).
+  fasta                        Takes a fasta-formatted file of amino acid
+                               sequences corresponding or containing VH and VL
+                               domains (requires anarci).
   pdb                          PDB-annotating mode. Replaces B-factor entries
                                with binding probabilities (in percentages). PDBs
                                must be Chothia-numbered.
@@ -57,6 +74,8 @@ import numpy as np
 from structure_processor import get_structure_from_pdb, extract_cdrs, \
     residue_seq_to_one, produce_annotated_ab_structure, save_structure, aa_s, \
     seq_to_one_hot
+
+from full_seq_processor import get_CDR_simple, NUM_EXTRA_RESIDUES, read_fasta
 
 MAX_CDR_LEN = 31
 WEIGHTS = "weights.h5"
@@ -171,6 +190,23 @@ def process_cdr_sequences(cdr_file):
         process_sequences(seqs)
 
 
+# Full sequence processing by Pietro Sormanni
+def process_full_VH_VL_sequence(full_sequence) :
+    cdrs = get_CDR_simple( full_sequence.replace("\'",'').replace('\"','').replace(' ','').upper() )
+    print(cdrs)
+    for cdr_name in sorted(cdrs) :
+        print("--- %-4s + %d residue per side ---"  % (cdr_name,NUM_EXTRA_RESIDUES))
+        #print("-- Automatically extracted %-4s --" % (cdr_name))
+        process_single_cdr(cdrs[cdr_name])
+
+
+def process_fasta_file(fastafile) :
+    sequences,_ = read_fasta(fastafile)
+    for srec in sequences :
+        print("\n> %s" % (srec.name))
+        process_full_VH_VL_sequence( str(srec.seq) )
+
+
 def main():
     arguments = docopt(__doc__, version='Parapred v1')
     if arguments["pdb"]:
@@ -185,6 +221,11 @@ def main():
             process_single_cdr(arguments["<cdr_seq>"])
         else:
             process_cdr_sequences(arguments["--cdr-list"])
+    elif arguments["seq"]:
+        process_full_VH_VL_sequence(arguments["<sequence>"])
+    elif arguments["fasta"]:
+        process_fasta_file(arguments["<fasta_file>"])
+
 
 
 if __name__ == '__main__':

@@ -131,7 +131,7 @@ def annotate_chain_with_prob(c, cdr_names, probs):
                 continue
 
             p = probs[i, j][0]
-            for a in res.get_atom():
+            for a in res.get_atoms():
                 a.set_bfactor(p * 100)
 
             j += 1

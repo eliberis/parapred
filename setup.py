@@ -9,5 +9,6 @@ setup(
     author='E Liberis',
     author_email='el398@cam.ac.uk',
     description='Paratope prediction',
+    data_files=[('parapred', ['weights.h5'])],
     scripts=['bin/parapred']
 )

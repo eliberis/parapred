@@ -70,6 +70,7 @@ from __future__ import print_function
 from docopt import docopt
 from pandas import read_csv
 import numpy as np
+import sys
 
 from structure_processor import get_structure_from_pdb, extract_cdrs, \
     residue_seq_to_one, produce_annotated_ab_structure, save_structure, aa_s, \
@@ -78,7 +79,7 @@ from structure_processor import get_structure_from_pdb, extract_cdrs, \
 from full_seq_processor import get_CDR_simple, NUM_EXTRA_RESIDUES, read_fasta
 
 MAX_CDR_LEN = 31
-WEIGHTS = "weights.h5"
+WEIGHTS = sys.prefix + "/parapred/weights.h5"
 
 _model = None
 
@@ -88,7 +89,7 @@ def get_predictor():
     from model import ab_seq_model
     if _model is None:
         _model = ab_seq_model(MAX_CDR_LEN)
-        _model.load_weights("weights.h5")
+        _model.load_weights(WEIGHTS)
     return _model
 
 

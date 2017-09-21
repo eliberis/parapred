@@ -71,6 +71,7 @@ from docopt import docopt
 from pandas import read_csv
 import numpy as np
 import sys
+from os.path import exists as file_exists
 
 from structure_processor import get_structure_from_pdb, extract_cdrs, \
     residue_seq_to_one, produce_annotated_ab_structure, save_structure, aa_s, \
@@ -80,6 +81,11 @@ from full_seq_processor import get_CDR_simple, NUM_EXTRA_RESIDUES, read_fasta
 
 MAX_CDR_LEN = 31
 WEIGHTS = sys.prefix + "/parapred/weights.h5"
+if not file_exists(WEIGHTS):
+    WEIGHTS="weights.h5"
+if not file_exists(WEIGHTS):
+    print("Can't find weights.h5 file. Make sure you installed parapred correctly or that weights.h5 exists in the current directory.")
+    exit(1)
 
 _model = None
 

@@ -4,7 +4,7 @@ from os.path import isfile
 from structure_processor import *
 
 PDBS = "data/pdbs/{0}.pdb"
-MAX_CDR_LEN = 31  # For padding
+MAX_CDR_LEN = 32  # 28 + 2 + 2
 
 
 def load_chains(dataset_desc_filename):

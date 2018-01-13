@@ -2,12 +2,19 @@ import pickle
 import pandas as pd
 from os.path import isfile
 from structure_processor import *
+from data.scrape import download_annotated_seq
 
 PDBS = "data/pdbs/{0}.pdb"
 MAX_CDR_LEN = 32  # 28 + 2 + 2
 
 
-def load_chains(dataset_desc_filename):
+def load_chains(dataset_desc_filename, sequence_cache_file="downloaded_seqs.p"):
+    if not isfile(sequence_cache_file):
+        download_annotated_sequences(dataset_desc_filename, sequence_cache_file)
+
+    with open(sequence_cache_file, "rb") as f:
+        sequences = pickle.load(f)
+
     df = pd.read_csv(dataset_desc_filename)
     for _, entry in df.iterrows():
         pdb_name = entry['pdb']
@@ -31,7 +38,7 @@ def load_chains(dataset_desc_filename):
         ag_chain_struct = None if "|" in ag_chain else model[ag_chain]
 
         yield ag_search, model[ab_h_chain], model[ab_l_chain], \
-              ag_chain_struct, pdb_name
+              ag_chain_struct, sequences[pdb_name], pdb_name
 
 
 def process_dataset(summary_file):
@@ -42,11 +49,11 @@ def process_dataset(summary_file):
     all_lbls = []
     all_masks = []
 
-    for ag_search, ab_h_chain, ab_l_chain, _, pdb in load_chains(summary_file):
+    for ag_search, ab_h_chain, ab_l_chain, _, seqs, pdb in load_chains(summary_file):
         print("Processing PDB: ", pdb)
 
         cdrs, lbls, cdr_mask, (nic, nr) =\
-            process_chains(ag_search, ab_h_chain, ab_l_chain,
+            process_chains(ag_search, ab_h_chain, ab_l_chain, seqs, pdb,
                            max_cdr_len=MAX_CDR_LEN)
 
         num_in_contact += nic
@@ -88,12 +95,12 @@ def open_dataset(summary_file, dataset_cache="processed-dataset.p"):
     return dataset
 
 
-def process_chains(ag_search, ab_h_chain, ab_l_chain, max_cdr_len):
+def process_chains(ag_search, ab_h_chain, ab_l_chain, sequences, pdb, max_cdr_len):
 
     # Extract CDRs
     cdrs = {}
-    cdrs.update(extract_cdrs(ab_h_chain, ["H1", "H2", "H3"]))
-    cdrs.update(extract_cdrs(ab_l_chain, ["L1", "L2", "L3"]))
+    cdrs.update(extract_cdrs(ab_h_chain, sequences["H"], "H"))
+    cdrs.update(extract_cdrs(ab_l_chain, sequences["L"], "L"))
 
     # Compute ground truth -- contact information
     num_residues = 0
@@ -102,7 +109,7 @@ def process_chains(ag_search, ab_h_chain, ab_l_chain, max_cdr_len):
 
     for cdr_name, cdr_chain in cdrs.items():
         contact[cdr_name] = \
-            [residue_in_contact_with(res, ag_search) for res in cdr_chain]
+            [False if res[1] is None else residue_in_contact_with(res[1], ag_search) for res in cdr_chain]
         num_residues += len(contact[cdr_name])
         num_in_contact += sum(contact[cdr_name])
 
@@ -116,7 +123,7 @@ def process_chains(ag_search, ab_h_chain, ab_l_chain, max_cdr_len):
     cdr_masks = []
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
         # Convert Residue entities to amino acid sequences
-        cdr_chain = residue_seq_to_one(cdrs[cdr_name])
+        cdr_chain = [r[0] for r in cdrs[cdr_name]]
 
         cdr_mat = seq_to_one_hot(cdr_chain)
         cdr_mat_pad = np.zeros((max_cdr_len, NUM_FEATURES))
@@ -137,3 +144,20 @@ def process_chains(ag_search, ab_h_chain, ab_l_chain, max_cdr_len):
     masks = np.stack(cdr_masks)
 
     return cdrs, lbls, masks, (num_in_contact, num_residues)
+
+
+def download_annotated_sequences(dataset_desc_filename, cache_file="downloaded_seqs.p"):
+    df = pd.read_csv(dataset_desc_filename)
+    output = {}
+
+    for _, entry in df.iterrows():  # Do in parallel
+        pdb_name = entry['pdb']
+        ab_h_chain = entry['Hchain']
+        ab_l_chain = entry['Lchain']
+
+        print("Downloading " + pdb_name)
+        seq = download_annotated_seq(pdb_name, ab_h_chain, ab_l_chain)
+        output[pdb_name] = seq
+
+    with open(cache_file, "wb") as f:
+        pickle.dump(output, f)

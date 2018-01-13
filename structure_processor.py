@@ -15,17 +15,37 @@ aa_s = "CSTPAGNDEQHRKMILVFYWU" # U for unknown
 NUM_FEATURES = len(aa_s) + 7 # one-hot + extra features
 
 
-# TODO: Could optimise a bit, but not important
-def extract_cdrs(chain, cdr_names):
-    cdrs = { name : [] for name in cdr_names }
-    for res in chain.get_unpacked_list():
-        # Does this residue belong to any of the CDRs?
-        for cdr_name in cdrs:
-            cdr_low, cdr_hi = chothia_cdr_def[cdr_name]
-            cdr_range = range(-NUM_EXTRA_RESIDUES + cdr_low, cdr_hi +
-                              NUM_EXTRA_RESIDUES + 1)
-            if res.id[1] in cdr_range:
-                cdrs[cdr_name].append(res)
+def residue_in_cdr(res_id, chain_type):
+    cdr_names = [chain_type + str(e) for e in [1, 2, 3]]  # L1-3 or H1-3
+    # Loop over all CDR definitions to see if the residue is in one.
+    # Inefficient but easier to implement.
+    for cdr_name in cdr_names:
+        cdr_low, cdr_hi = chothia_cdr_def[cdr_name]
+        range_low, range_hi = -NUM_EXTRA_RESIDUES + cdr_low, cdr_hi + NUM_EXTRA_RESIDUES
+        if range_low <= res_id[0] <= range_hi:
+            return cdr_name
+    return None
+
+
+def find_pdb_residue(pdb_residues, residue_id):
+    for pdb_res in pdb_residues:
+        if (pdb_res.id[1], pdb_res.id[2].strip()) == residue_id:
+            return pdb_res
+    return None
+
+
+def extract_cdrs(chain, sequence, chain_type):
+    cdrs = {}
+    pdb_residues = chain.get_unpacked_list()
+    seq_residues = sorted(sequence)
+
+    for res_id in seq_residues:
+        cdr = residue_in_cdr(res_id, chain_type)
+        if cdr is not None:
+            pdb_res = find_pdb_residue(pdb_residues, res_id)
+            cdr_seq = cdrs.get(cdr, [])
+            cdr_seq.append((sequence[res_id], pdb_res, res_id))
+            cdrs[cdr] = cdr_seq
     return cdrs
 
 

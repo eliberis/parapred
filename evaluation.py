@@ -8,7 +8,7 @@ from structure_processor import save_chain, save_structure, \
 from patchdock_tools import output_patchdock_ab_constraint, \
     output_patchdock_ag_constraint, process_transformations
 from keras.callbacks import LearningRateScheduler, EarlyStopping
-from sklearn.metrics import confusion_matrix, roc_auc_score, matthews_corrcoef
+from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve, matthews_corrcoef
 
 AB_STRUCT_SAVE_PATH = "{0}/{1}_AB.pdb"
 AG_STRUCT_SAVE_PATH = "{0}/{1}_AG.pdb"
@@ -48,6 +48,14 @@ def capri_evaluate_test_structures(summary_file, folder="results"):
     return num_decoys
 
 
+def structure_ids_to_selection_mask(idx, num_structures):
+    mask = np.zeros((num_structures * 6, ), dtype=np.bool)
+    offset = idx * 6
+    for i in range(6):
+        mask[offset + i] = True
+    return mask
+
+
 def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
                   weights_template="weights-fold-{}.h5", seed=0):
     cdrs, lbls, masks = dataset["cdrs"], dataset["lbls"], dataset["masks"]
@@ -57,8 +65,12 @@ def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
     all_probs = []
     all_masks = []
 
-    for i, (train_idx, test_idx) in enumerate(kf.split(cdrs)):
+    num_structures = int(len(cdrs) / 6)
+    for i, (train_ids, test_ids) in enumerate(kf.split(np.arange(num_structures))):
         print("Fold: ", i + 1)
+
+        train_idx = structure_ids_to_selection_mask(train_ids, num_structures)
+        test_idx = structure_ids_to_selection_mask(test_ids, num_structures)
 
         cdrs_train, lbls_train, mask_train = \
             cdrs[train_idx], lbls[train_idx], masks[train_idx]
@@ -103,10 +115,27 @@ def flatten_with_lengths(matrix, lengths):
     return np.concatenate(seqs)
 
 
-def compute_classifier_metrics(labels, probs, threshold=0.5):
+def youden_j_stat(fpr, tpr, thresholds):
+    j_ordered = sorted(zip(tpr - fpr, thresholds))
+    return j_ordered[-1][1]
+
+
+def compute_classifier_metrics(labels, probs):
     matrices = []
     aucs = []
     mcorrs = []
+    jstats = []
+
+    for l, p in zip(labels, probs):
+        jstats.append(youden_j_stat(*roc_curve(l, p)))
+
+    jstat_scores = np.array(jstats)
+    jstat = np.mean(jstat_scores)
+    jstat_err = 2 * np.std(jstat_scores)
+
+    threshold = jstat
+
+    print("Youden's J statistic = {} +/- {}. Using it as threshold.".format(jstat, jstat_err))
 
     for l, p in zip(labels, probs):
         aucs.append(roc_auc_score(l, p))

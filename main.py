@@ -96,43 +96,30 @@ def run_cv(dataset="data/sabdab_27_jun_95_90.csv",
                       output_file, weights_template, seed=i)
 
 
-def process_cv_results():
+def process_cv_results(cv_result_folder="cv-full-2Jan", abip_result_folder="cv-full-ab-2Jan"):
     import matplotlib.pyplot as plt
-    plt.rcParams["font.family"] = "Times New Roman"
-
-    # Plot ROC per loop type
-    fig = None
-    cols = [("#D6083B", "#EB99A9"),
-            ("#0072CF", "#68ACE5"),
-            ("#EA7125", "#F3BD48"),
-            ("#55A51C", "#AAB300"),
-            ("#8F2BBC", "#AF95A3"),
-            ("#00B1C1", "#91B9A4")]
+    plt.rcParams["font.family"] = "Arial"
 
     for i, loop in enumerate(["H1", "H2", "H3", "L1", "L2", "L3"]):
-        print("Plotting ROC for loop type", loop)
-        labels, probs = open_crossval_results("runs/cv-ab-seq", 10, i)
-        fig = plot_roc_curve(labels, probs, label=loop,
-                             colours=cols[i], plot_fig=fig)
-
-    fig.gca().set_title("ROC curves per loop type")
-    fig.savefig("roc.pdf")
+        print("Classifier metrics for loop type", loop)
+        labels, probs = open_crossval_results(cv_result_folder, 10, i)
+        compute_classifier_metrics(labels, probs)
 
     # Plot PR curves
     print("Plotting PR curves")
-    labels, probs = open_crossval_results("runs/cv-ab-seq", 10)
-    labels_abip, probs_abip = open_crossval_results("runs/cv-ab-seq-abip", 10)
+    labels, probs = open_crossval_results(cv_result_folder, 10)
+    labels_abip, probs_abip = open_crossval_results(abip_result_folder, 10)
 
     fig = plot_pr_curve(labels, probs, colours=("#0072CF", "#68ACE5"),
                         label="Parapred")
     fig = plot_pr_curve(labels_abip, probs_abip, colours=("#D6083B", "#EB99A9"),
                         label="Parapred using ABiP data", plot_fig=fig)
     fig = plot_abip_pr(fig)
-    fig.savefig("pr.pdf")
+    fig.savefig("pr.eps")
 
     # Computing overall classifier metrics
     print("Computing classifier metrics")
-    compute_classifier_metrics(labels, probs, threshold=0.4913739)
+    compute_classifier_metrics(labels, probs)
 
 
 def patchdock_prepare():
@@ -191,7 +178,6 @@ def show_binding_profiles():
     print(parapred)
 
     plot_binding_profiles(contact, parapred)
-
 
 if __name__ == "__main__":
     process_cv_results()

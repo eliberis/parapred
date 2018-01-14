@@ -83,7 +83,7 @@ def ab_ag_seq_model(max_ag_len, max_cdr_len):
     return model
 
 
-def ab_seq_model(max_cdr_len):
+def base_ab_seq_model(max_cdr_len):
     input_ab = Input(shape=(max_cdr_len, NUM_FEATURES))
     label_mask = Input(shape=(max_cdr_len,))
 
@@ -91,19 +91,29 @@ def ab_seq_model(max_cdr_len):
     loc_fts = MaskedConvolution1D(28, 3, padding='same', activation='elu',
                                   kernel_regularizer=l2(0.01))(seq)
 
-    fts = add([seq, loc_fts])
+    res_fts = add([seq, loc_fts])
 
     glb_fts = Bidirectional(LSTM(256, dropout=0.15, recurrent_dropout=0.2,
                                  return_sequences=True),
-                            merge_mode='concat')(fts)
+                            merge_mode='concat')(res_fts)
 
     fts = Dropout(0.3)(glb_fts)
     probs = TimeDistributed(Dense(1, activation='sigmoid',
-                                     kernel_regularizer=l2(0.01)))(fts)
-    model = Model(inputs=[input_ab, label_mask], outputs=probs)
+                                  kernel_regularizer=l2(0.01)))(fts)
+    return input_ab, label_mask, res_fts, probs
 
+
+def ab_seq_model(max_cdr_len):
+    input_ab, label_mask, _, probs = base_ab_seq_model(max_cdr_len)
+    model = Model(inputs=[input_ab, label_mask], outputs=probs)
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',
                   metrics=['binary_accuracy', false_pos, false_neg],
                   sample_weight_mode="temporal")
+    return model
+
+
+def conv_output_ab_seq_model(max_cdr_len):
+    input_ab, label_mask, loc_fts, probs = base_ab_seq_model(max_cdr_len)
+    model = Model(inputs=[input_ab, label_mask], outputs=[probs, loc_fts])
     return model

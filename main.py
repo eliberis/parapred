@@ -197,5 +197,20 @@ def evaluate(test_dataset, weights="weights.h5"):
     compute_classifier_metrics([l], [p])
 
 
+def print_neighbourhood_tops(weights="weights.h5"):
+    tops = neighbourhood_tops(weights, top_k=10, num_filters_first=20)
+
+    print("Top 10 sequences activating first 20 conv. filters:")
+    for f in range(20):
+        print("F{}".format(f), end='\t')
+    print()
+
+    for i in range(10):
+        for f in range(20):
+            print(tops[f][i], end='\t')
+        print()
+    print()
+
+
 if __name__ == "__main__":
     full_run()

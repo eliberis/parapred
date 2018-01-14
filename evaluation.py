@@ -4,7 +4,8 @@ from sklearn.model_selection import KFold
 from data_provider import load_chains
 from structure_processor import save_chain, save_structure, \
     produce_annotated_ab_structure, extended_epitope, extract_cdrs, \
-    aa_s
+    aa_s, seq_to_one_hot
+from model import conv_output_ab_seq_model
 from patchdock_tools import output_patchdock_ab_constraint, \
     output_patchdock_ag_constraint, process_transformations
 from keras.callbacks import LearningRateScheduler, EarlyStopping
@@ -236,3 +237,21 @@ def binding_profile(summary_file, probs, threshold=0.5): # 0.565
                     binding_prof[r] += 1
 
     return binding_prof
+
+
+def neighbourhood_tops(weights, top_k=10, num_filters_first=20):
+    candidates = [a + b + c for a in aa_s for b in aa_s for c in aa_s]
+    mats = np.stack([seq_to_one_hot(c) for c in candidates])
+
+    model = conv_output_ab_seq_model(3)
+    model.load_weights(weights)
+    _, fts = model.predict([mats, np.ones((len(mats), 3))], verbose=1)
+
+    activations = np.abs(fts[:, 1, :num_filters_first])
+
+    output = []
+    for f in range(num_filters_first):
+        act = np.abs(activations[:, f])
+        idxs = act.argsort()[-top_k:][::-1]  # get indices for top k elements in descending order
+        output.append([(candidates[idx]) for idx in idxs])
+    return output

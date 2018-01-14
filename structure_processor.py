@@ -112,33 +112,30 @@ def residue_in_contact_with(res, c_search, dist=CONTACT_DISTANCE):
                for a in res.get_unpacked_list())
 
 
-def annotate_chain_with_prob(c, cdr_names, probs):
+def annotate_chain_with_prob(c, seq, chain_type, probs):
     for a in c.get_atoms():
         a.set_bfactor(0)
 
-    for i, cdr_name in enumerate(cdr_names):
-        cdr_low, cdr_hi = chothia_cdr_def[cdr_name]
-        cdr_range = range(-NUM_EXTRA_RESIDUES + cdr_low,
-                          cdr_hi + NUM_EXTRA_RESIDUES + 1)
+    offsets = [0, 0, 0]
+    for res_id in seq:
+        cdr = residue_in_cdr(res_id, chain_type)
+        if cdr is not None:
+            cdr_id = int(cdr[1]) - 1
+            p = probs[cdr_id, offsets[cdr_id]][0]
+            res = find_pdb_residue(c, res_id)
+            if res is not None:
+                for a in res.get_atom():
+                    a.set_bfactor(p * 100)
 
-        j = 0
-        for res in c.get_residues():
-            if not res.id[1] in cdr_range:
-                continue
-
-            p = probs[i, j][0]
-            for a in res.get_atoms():
-                a.set_bfactor(p * 100)
-
-            j += 1
+            offsets[cdr_id] += 1
     return c
 
 
-def produce_annotated_ab_structure(ab_h_chain, ab_l_chain, probs):
-    ab_h_chain = annotate_chain_with_prob(ab_h_chain,
-                                          ["H1", "H2", "H3"], probs[0:3, :])
-    ab_l_chain = annotate_chain_with_prob(ab_l_chain,
-                                          ["L1", "L2", "L3"], probs[3:6, :])
+def produce_annotated_ab_structure(ab_h_chain, ab_l_chain, ab_seq, probs):
+    ab_h_chain = annotate_chain_with_prob(ab_h_chain, ab_seq["H"],
+                                          "H", probs[0:3, :])
+    ab_l_chain = annotate_chain_with_prob(ab_l_chain, ab_seq["L"],
+                                          "L", probs[3:6, :])
 
     # Create a structure with annotated AB chains
     new_model = Model(0)

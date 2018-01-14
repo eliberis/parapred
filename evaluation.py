@@ -19,10 +19,10 @@ PATCHDOCK_RESULTS_PATH = "{0}/{1}.txt"
 
 def annotate_and_save_test_structures(summary_file, probs, folder="annotated"):
     chains = load_chains(summary_file)
-    for i, (_, ab_h_chain, ab_l_chain, ag_chain, pdb_name) in enumerate(chains):
+    for i, (_, ab_h_chain, ab_l_chain, ag_chain, ab_seq, pdb_name) in enumerate(chains):
         p = probs[6*i:6*(i+1)]
 
-        ab_struct = produce_annotated_ab_structure(ab_h_chain, ab_l_chain, p)
+        ab_struct = produce_annotated_ab_structure(ab_h_chain, ab_l_chain, ab_seq, p)
         save_structure(ab_struct, AB_STRUCT_SAVE_PATH.format(folder, pdb_name))
 
         save_chain(ag_chain, AG_STRUCT_SAVE_PATH.format(folder, pdb_name))

@@ -179,5 +179,22 @@ def show_binding_profiles(run):
 
     plot_binding_profiles(contact, parapred)
 
+
+def evaluate(test_dataset, weights="weights.h5"):
+    cache_file = test_dataset.split("/")[-1] + ".p"
+    dataset = open_dataset(test_dataset, dataset_cache=cache_file)
+    cdrs, lbls, masks = dataset["cdrs"], dataset["lbls"], dataset["masks"]
+
+    model = ab_seq_model(dataset["max_cdr_len"])
+    model.load_weights(weights)
+    probs = model.predict([cdrs, np.squeeze(masks)])
+
+    seq_lens = np.sum(np.squeeze(masks), axis=1)
+    p = flatten_with_lengths(probs, seq_lens)
+    l = flatten_with_lengths(lbls, seq_lens)
+
+    compute_classifier_metrics([l], [p])
+
+
 if __name__ == "__main__":
     full_run()

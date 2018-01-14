@@ -92,7 +92,7 @@ def plot_abip_pr(plot_fig=None):
     abip_std = np.array([0.06, 0.04, 0.031, 0.028, 0.026,
                          0.023, 0.02, 0.015, 0.013, 0.012])
 
-    ax.errorbar(abip_rec, abip_pre, yerr=2 * abip_std, label="Antibody i-Patch",
+    ax.errorbar(abip_rec, abip_pre, yerr=2 * abip_std, label="Antibody i-Patch (ABiP)",
                 fmt='o', mfc="#EA7125", mec="#EA7125", ms=3,
                 ecolor="#F3BD48", elinewidth=1, capsize=3)
 

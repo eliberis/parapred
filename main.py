@@ -86,8 +86,8 @@ def run_cv(dataset="data/sabdab_27_jun_95_90.csv",
     dataset = open_dataset(dataset, dataset_cache=cache_file)
     model_factory = lambda: ab_seq_model(dataset["max_cdr_len"])
 
-    makedirs(output_folder + "/weights")
-    for i in range(num_iters):
+    makedirs(output_folder + "/weights", exist_ok=True)
+    for i in range(*num_iters if type(num_iters) in [list, tuple] else num_iters):
         print("Crossvalidation run", i+1)
         output_file = "{}/run-{}.p".format(output_folder, i)
         weights_template = output_folder + "/weights/run-" + \
@@ -96,7 +96,8 @@ def run_cv(dataset="data/sabdab_27_jun_95_90.csv",
                       output_file, weights_template, seed=i)
 
 
-def process_cv_results(cv_result_folder="cv-full-2Jan", abip_result_folder="cv-full-ab-2Jan"):
+def process_cv_results(cv_result_folder="runs/cv-full-2Jan",
+                       abip_result_folder="runs/cv-full-ab-2Jan"):
     import matplotlib.pyplot as plt
     plt.rcParams["font.family"] = "Arial"
 

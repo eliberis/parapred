@@ -180,4 +180,4 @@ def show_binding_profiles():
     plot_binding_profiles(contact, parapred)
 
 if __name__ == "__main__":
-    process_cv_results()
+    full_run()

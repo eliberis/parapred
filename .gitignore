@@ -1,4 +1,14 @@
 .idea/
 __pycache__/
 data/pdbs
-
+runs/
+*.p
+*.pdf
+*.eps
+*.ipynb
+*.zip
+annotated/
+results/
+sabdab*
+transforms/
+!downloaded_seqs.p

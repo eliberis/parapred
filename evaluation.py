@@ -39,11 +39,12 @@ def capri_evaluate_test_structures(summary_file, folder="results"):
     num_decoys = {'high': 0, 'med': 0, 'low': 0}
 
     chains = load_chains(summary_file)
-    for _, ab_h_chain, ab_l_chain, ag_chain, pdb_name in chains:
+    for _, ab_h_chain, ab_l_chain, ag_chain, _, pdb_name in chains:
         trans_file = PATCHDOCK_RESULTS_PATH.format(folder, pdb_name)
         q = process_transformations(trans_file, ag_chain, ab_h_chain,
-                                    ab_l_chain, limit=10)
-        if q is not None: num_decoys[q] += 1
+                                    ab_l_chain, limit=200)
+        if q is not None:
+            num_decoys[q] += 1
 
     return num_decoys
 

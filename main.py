@@ -160,8 +160,8 @@ def patchdock_classify():
     print(capri_evaluate_test_structures("data/dock_test.csv", "results/parapred"))
 
 
-def show_binding_profiles():
-    labels, probs = open_crossval_results(flatten_by_lengths=False)
+def show_binding_profiles(run):
+    labels, probs = open_crossval_results(run, flatten_by_lengths=False)
     labels = labels[0]  # Labels are constant, any of the 10 runs would do
     probs = np.stack(probs).mean(axis=0)  # Mean binding probability across runs
 

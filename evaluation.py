@@ -4,7 +4,7 @@ from sklearn.model_selection import KFold
 from data_provider import load_chains
 from structure_processor import save_chain, save_structure, \
     produce_annotated_ab_structure, extended_epitope, extract_cdrs, \
-    residue_seq_to_one, aa_s
+    aa_s
 from patchdock_tools import output_patchdock_ab_constraint, \
     output_patchdock_ag_constraint, process_transformations
 from keras.callbacks import LearningRateScheduler, EarlyStopping
@@ -216,21 +216,21 @@ def open_crossval_results(folder="runs/cv-ab-seq", num_results=10,
 
 
 def binding_profile(summary_file, probs, threshold=0.5): # 0.565
-    binding_prof = {r : 0 for r in aa_s}
+    binding_prof = {r: 0 for r in aa_s}
 
-    for i, (_, ab_h_chain, ab_l_chain, _, pdb) in \
+    for i, (_, ab_h_chain, ab_l_chain, _, ab_seq, pdb) in \
             enumerate(load_chains(summary_file)):
         print("Processing", pdb)
 
         # Extract CDRs
         cdrs = {}
-        cdrs.update(extract_cdrs(ab_h_chain, ["H1", "H2", "H3"]))
-        cdrs.update(extract_cdrs(ab_l_chain, ["L1", "L2", "L3"]))
+        cdrs.update(extract_cdrs(ab_h_chain, ab_seq["H"], "H"))
+        cdrs.update(extract_cdrs(ab_l_chain, ab_seq["L"], "L"))
 
         p_struct = probs[6*i:6*(i+1)]
         for j, cdr_name in enumerate(["H1", "H2", "H3", "L1", "L2", "L3"]):
             p_cdr = p_struct[j]
-            res = residue_seq_to_one(cdrs[cdr_name])
+            res = [r[0] for r in cdrs[cdr_name]]  # Only interested in the letter
             for k, r in enumerate(res):
                 if p_cdr[k] > threshold:
                     binding_prof[r] += 1

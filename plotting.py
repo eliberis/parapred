@@ -146,8 +146,8 @@ def plot_roc_curve(labels_test, probs_test, colours=("#0072CF", "#68ACE5"),
 
 
 def plot_binding_profiles(contact, parapred, colours=("#0072CF", "#D6083B"),
-                          save_as="binding_profiles.pdf"):
-    plt.rcParams["font.family"] = "Times New Roman"
+                          save_as="binding_profiles.eps"):
+    plt.rcParams["font.family"] = "Arial"
 
     plot_fig = plt.figure(figsize=(4.8, 3.7), dpi=400)
     ax = plot_fig.gca()

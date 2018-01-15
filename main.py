@@ -87,7 +87,8 @@ def run_cv(dataset="data/sabdab_27_jun_95_90.csv",
     model_factory = lambda: ab_seq_model(dataset["max_cdr_len"])
 
     makedirs(output_folder + "/weights", exist_ok=True)
-    for i in range(*num_iters if type(num_iters) in [list, tuple] else num_iters):
+    iters = range(num_iters) if type(num_iters) is int else range(*num_iters)
+    for i in iters:
         print("Crossvalidation run", i+1)
         output_file = "{}/run-{}.p".format(output_folder, i)
         weights_template = output_folder + "/weights/run-" + \
@@ -121,6 +122,27 @@ def process_cv_results(cv_result_folder="runs/cv-full-2Jan",
     # Computing overall classifier metrics
     print("Computing classifier metrics")
     compute_classifier_metrics(labels, probs)
+
+
+def plot_dataset_fraction_results(baseline, d60, d80, dfull):
+    import matplotlib.pyplot as plt
+    plt.rcParams["font.family"] = "Arial"
+
+    print("Plotting PR curves")
+    labels_baseline, probs_baseline = open_crossval_results(baseline, 10)
+    labels_d60, probs_d60 = open_crossval_results(d60, 10)
+    labels_d80, probs_d80 = open_crossval_results(d80, 10)
+    labels_dfull, probs_dfull = open_crossval_results(dfull, 10)
+
+    fig = plot_pr_curve(labels_dfull, probs_dfull, colours=("#0072CF", "#68ACE5"),
+                        label="Parapred (239 entries)")
+    fig = plot_pr_curve(labels_d80, probs_d80, colours=("#EA7125", "#F3BD48"),
+                        label="Parapred (80% of data, 191 entries)", plot_fig=fig)
+    fig = plot_pr_curve(labels_d60, probs_d60, colours=("#55A51C", "#AAB300"),
+                        label="Parapred (60% of data, 143 entries)", plot_fig=fig)
+    fig = plot_pr_curve(labels_baseline, probs_baseline, colours=("#D6083B", "#EB99A9"),
+                        label="Parapred using ABiP data (148 entries)", plot_fig=fig)
+    fig.savefig("fractions-pr.eps")
 
 
 def patchdock_prepare():

@@ -1,15 +1,16 @@
-from data_provider import *
-from evaluation import *
-from model import *
-from plotting import *
 from keras.callbacks import LearningRateScheduler, EarlyStopping
 import numpy as np
 from os import makedirs
 from os.path import isfile
 
+from .data_provider import *
+from .evaluation import *
+from .model import *
+from .plotting import *
+
 
 def single_run():
-    dataset = open_dataset("data/sabdab_27_jun_95_90.csv")
+    dataset = open_dataset("parapred/data/sabdab_27_jun_95_90.csv")
 
     max_cdr_len = dataset["max_cdr_len"]
     pos_class_weight = dataset["pos_class_weight"]
@@ -61,7 +62,7 @@ def single_run():
     compute_classifier_metrics([lbls_flat], [probs_flat], threshold=0.5)
 
 
-def full_run(dataset="data/sabdab_27_jun_95_90.csv", out_weights="weights.h5"):
+def full_run(dataset="parapred/data/sabdab_27_jun_95_90.csv", out_weights="weights.h5"):
     cache_file = dataset.split("/")[-1] + ".p"
     dataset = open_dataset(dataset, dataset_cache=cache_file)
     cdrs, lbls, masks = dataset["cdrs"], dataset["lbls"], dataset["masks"]
@@ -79,7 +80,7 @@ def full_run(dataset="data/sabdab_27_jun_95_90.csv", out_weights="weights.h5"):
     model.save_weights(out_weights)
 
 
-def run_cv(dataset="data/sabdab_27_jun_95_90.csv",
+def run_cv(dataset="parapred/data/sabdab_27_jun_95_90.csv",
            output_folder="cv-ab-seq",
            num_iters=10):
     cache_file = dataset.split("/")[-1] + ".p"
@@ -148,9 +149,9 @@ def plot_dataset_fraction_results(baseline, d60, d80, dfull):
 def patchdock_prepare():
     model_weights = "dock-weights.h5"
     if not isfile(model_weights):
-        full_run("data/dock_train.csv", model_weights)
+        full_run("parapred/data/dock_train.csv", model_weights)
 
-    dataset = open_dataset("data/dock_test.csv", "dock_test.csv.p")
+    dataset = open_dataset("parapred/data/dock_test.csv", "dock_test.csv.p")
     model = ab_seq_model(dataset["max_cdr_len"])
     model.load_weights(model_weights)
 
@@ -164,7 +165,7 @@ def patchdock_prepare():
     for name, probs in [("contact", contact), ("CDR", cdrs), ("parapred", parapred)]:
         print("Annotating structures with {} data".format(name))
         makedirs("annotated/" + name)
-        annotate_and_save_test_structures("data/dock_test.csv", probs,
+        annotate_and_save_test_structures("parapred/data/dock_test.csv", probs,
                                           "annotated/" + name)
 
 
@@ -174,13 +175,13 @@ def patchdock_classify():
     #     grep -v "Ligand" | head -n 200 > $f; done
 
     print("CDR results")
-    print(capri_evaluate_test_structures("data/dock_test.csv", "results/CDR"))
+    print(capri_evaluate_test_structures("parapred/data/dock_test.csv", "results/CDR"))
 
     print("Contact results")
-    print(capri_evaluate_test_structures("data/dock_test.csv", "results/contact"))
+    print(capri_evaluate_test_structures("parapred/data/dock_test.csv", "results/contact"))
 
     print("Parapred results")
-    print(capri_evaluate_test_structures("data/dock_test.csv", "results/parapred"))
+    print(capri_evaluate_test_structures("parapred/data/dock_test.csv", "results/parapred"))
 
 
 def show_binding_profiles(run):
@@ -188,13 +189,13 @@ def show_binding_profiles(run):
     labels = labels[0]  # Labels are constant, any of the 10 runs would do
     probs = np.stack(probs).mean(axis=0)  # Mean binding probability across runs
 
-    contact = binding_profile("data/sabdab_27_jun_95_90.csv", labels)
+    contact = binding_profile("parapred/data/sabdab_27_jun_95_90.csv", labels)
     print("Contact per-residue binding profile:")
     total = sum(list(contact.values()))
     contact = {k: v / total for k, v in contact.items()}
     print(contact)
 
-    parapred = binding_profile("data/sabdab_27_jun_95_90.csv", probs)
+    parapred = binding_profile("parapred/data/sabdab_27_jun_95_90.csv", probs)
     print("Model's predictions' per-residue binding profile:")
     total = sum(list(parapred.values()))
     parapred = {k: v / total for k, v in parapred.items()}
@@ -234,5 +235,5 @@ def print_neighbourhood_tops(weights="weights.h5"):
     print()
 
 
-if __name__ == "__main__":
+def main():
     full_run()

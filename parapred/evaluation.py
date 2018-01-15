@@ -1,15 +1,16 @@
 import numpy as np
 import pickle
 from sklearn.model_selection import KFold
-from data_provider import load_chains
-from structure_processor import save_chain, save_structure, \
-    produce_annotated_ab_structure, extended_epitope, extract_cdrs, \
-    aa_s, seq_to_one_hot
-from model import conv_output_ab_seq_model
-from patchdock_tools import output_patchdock_ab_constraint, \
-    output_patchdock_ag_constraint, process_transformations
 from keras.callbacks import LearningRateScheduler, EarlyStopping
 from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve, matthews_corrcoef
+
+from .data_provider import load_chains
+from .structure_processor import save_chain, save_structure, \
+    produce_annotated_ab_structure, extended_epitope, extract_cdrs, \
+    aa_s, seq_to_one_hot
+from .model import conv_output_ab_seq_model
+from .patchdock_tools import output_patchdock_ab_constraint, \
+    output_patchdock_ag_constraint, process_transformations
 
 AB_STRUCT_SAVE_PATH = "{0}/{1}_AB.pdb"
 AG_STRUCT_SAVE_PATH = "{0}/{1}_AG.pdb"

@@ -1,9 +1,11 @@
 import numpy as np
 import copy
 from Bio.PDB import *
-from structure_processor import extended_epitope
 from math import sin, cos, sqrt
 from itertools import chain, repeat
+
+from .structure_processor import extended_epitope
+
 
 def get_3d_rotation_matrix(x, y, z):
     cx, cy, cz = cos(x), cos(y), cos(z)

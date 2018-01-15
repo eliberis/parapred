@@ -70,30 +70,23 @@ from __future__ import print_function
 from docopt import docopt
 from pandas import read_csv
 import numpy as np
-import sys
-from os.path import exists as file_exists
+import pkg_resources
 
-from structure_processor import get_structure_from_pdb, extract_cdrs_from_structure, \
+from .structure_processor import get_structure_from_pdb, extract_cdrs_from_structure, \
     residue_seq_to_one, produce_annotated_ab_structure, save_structure, aa_s, \
     seq_to_one_hot
 
-from full_seq_processor import get_CDR_simple, NUM_EXTRA_RESIDUES, read_fasta
+from .full_seq_processor import get_CDR_simple, NUM_EXTRA_RESIDUES, read_fasta
 
 MAX_CDR_LEN = 40
-WEIGHTS = sys.prefix + "/parapred/weights.h5"
-if not file_exists(WEIGHTS):
-    WEIGHTS="weights.h5"
-if not file_exists(WEIGHTS):
-    print("Can't find weights.h5 file. "
-          "Make sure you installed parapred correctly or that weights.h5 exists in the current directory.")
-    exit(1)
+WEIGHTS = pkg_resources.resource_filename(__name__, "precomputed/weights.h5")
 
 _model = None
 
 
 def get_predictor():
     global _model
-    from model import ab_seq_model
+    from .model import ab_seq_model
     if _model is None:
         _model = ab_seq_model(MAX_CDR_LEN)
         _model.load_weights(WEIGHTS)
@@ -216,7 +209,7 @@ def process_fasta_file(fastafile) :
 
 
 def main():
-    arguments = docopt(__doc__, version='Parapred v1')
+    arguments = docopt(__doc__, version='Parapred v1.0.1')
     if arguments["pdb"]:
         if arguments["<pdb_file>"]:
             process_single_pdb(arguments["<pdb_file>"],

@@ -3,17 +3,21 @@
 ## Install
 
 Requirements:
-   * Python 3.6+ (Python 2.7 for just running the predictor)
-   * Packages listed in `requirements.txt`.
-     Use `sudo pip install -r requirements.txt` to install (or without `sudo` if
-     you're using a virtualenv). If you are using a Python installation manager,
-     such as Anaconda or Canopy, follow their package installation instructions instead.
+   * Python 3.6+ (or Python 2.7 for just running the predictor)
 
 To install:
-   * Run `python setup.py install` in the root directory. `parapred` executable
-     should now be available (run `parapred --help` to check.
+   * Run `python setup.py install` in the root directory. If you are using a Python installation
+     manager, such as Anaconda or Canopy, follow their package installation instructions.
+   * If you do not wish to install and run Parapred directly from a clone of this repository instead,
+     install required packages using `pip install -r requirements.txt`.
 
 ## Usage
+   * If installed, Parapred should just be available as a `parapred` executable on the command line (run
+     `parapred --help` to check).
+   * If you choose to run Parapred directly, make sure you've installed required packages from
+     `requirements.txt` and try executing `python -m parapred --help` or `./parapred-runner.py --help`
+     in the root of this repository.
+
 ```
 ➜  ~ parapred --help
 Parapred - neural network-based paratope predictor.

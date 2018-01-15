@@ -1,14 +1,14 @@
 import pickle
 import pandas as pd
 from os.path import isfile
-from structure_processor import *
-from data.scrape import download_annotated_seq
+from .structure_processor import *
+from .scrape import download_annotated_seq
 
-PDBS = "data/pdbs/{0}.pdb"
+PDBS = "parapred/data/pdbs/{0}.pdb"
 MAX_CDR_LEN = 32  # 28 + 2 + 2
 
 
-def load_chains(dataset_desc_filename, sequence_cache_file="downloaded_seqs.p"):
+def load_chains(dataset_desc_filename, sequence_cache_file="parapred/precomputed/downloaded_seqs.p"):
     if not isfile(sequence_cache_file):
         download_annotated_sequences(dataset_desc_filename, sequence_cache_file)
 

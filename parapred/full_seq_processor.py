@@ -2,7 +2,7 @@
 ## FUNCTIONS FOR SEQUENCE PROCESSING OF INPUTS ####
 
 import sys
-from structure_processor import NUM_EXTRA_RESIDUES
+from .structure_processor import NUM_EXTRA_RESIDUES
 
 def get_CDR_simple(sequence ,allow=set(["H", "K", "L"]),scheme='chothia',seqname=''\
         ,cdr1_scheme={'H':range(26-NUM_EXTRA_RESIDUES,34+NUM_EXTRA_RESIDUES),'L':range(24-NUM_EXTRA_RESIDUES,34+NUM_EXTRA_RESIDUES)} \

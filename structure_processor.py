@@ -10,7 +10,7 @@ CONTACT_DISTANCE = 4.5 # Contact distance between atoms in Angstroms
 chothia_cdr_def = { "L1" : (24, 34), "L2" : (50, 56), "L3" : (89, 97),
                     "H1" : (26, 32), "H2" : (52, 56), "H3" : (95, 102) }
 
-aa_s = "CSTPAGNDEQHRKMILVFYWU" # U for unknown
+aa_s = "CSTPAGNDEQHRKMILVFYWX" # X for unknown
 
 NUM_FEATURES = len(aa_s) + 7 # one-hot + extra features
 
@@ -49,9 +49,23 @@ def extract_cdrs(chain, sequence, chain_type):
     return cdrs
 
 
+def extract_cdrs_from_structure(chain, chain_type):
+    cdrs = {}
+    pdb_residues = chain.get_unpacked_list()
+
+    for r in pdb_residues:
+        cdr = residue_in_cdr(r.res_id[1:], chain_type)
+        if cdr is not None:
+            cdr_seq = cdrs.get(cdr, [])
+            cdr_seq.append(r)
+            cdrs[cdr] = cdr_seq
+
+    return cdrs
+
+
 def residue_seq_to_one(seq):
     three_to_one = lambda r: Polypeptide.three_to_one(r.resname)\
-        if r.resname in Polypeptide.standard_aa_names else 'U'
+        if r.resname in Polypeptide.standard_aa_names else 'X'
     return list(map(three_to_one, seq))
 
 

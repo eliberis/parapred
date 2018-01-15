@@ -54,7 +54,7 @@ def extract_cdrs_from_structure(chain, chain_type):
     pdb_residues = chain.get_unpacked_list()
 
     for r in pdb_residues:
-        cdr = residue_in_cdr(r.res_id[1:], chain_type)
+        cdr = residue_in_cdr(r.get_id()[1:], chain_type)
         if cdr is not None:
             cdr_seq = cdrs.get(cdr, [])
             cdr_seq.append(r)
@@ -131,17 +131,29 @@ def annotate_chain_with_prob(c, seq, chain_type, probs):
         a.set_bfactor(0)
 
     offsets = [0, 0, 0]
-    for res_id in seq:
-        cdr = residue_in_cdr(res_id, chain_type)
-        if cdr is not None:
-            cdr_id = int(cdr[1]) - 1
-            p = probs[cdr_id, offsets[cdr_id]][0]
-            res = find_pdb_residue(c, res_id)
-            if res is not None:
-                for a in res.get_atom():
-                    a.set_bfactor(p * 100)
 
-            offsets[cdr_id] += 1
+    def annotate(res, cdr):
+        cdr_id = int(cdr[1]) - 1
+        p = probs[cdr_id, offsets[cdr_id]][0]
+        if res is not None:
+            for a in res.get_atom():
+                a.set_bfactor(p * 100)
+
+        offsets[cdr_id] += 1
+
+    if seq is not None:
+        for res_id in seq:
+            cdr = residue_in_cdr(res_id, chain_type)
+            if cdr is not None:
+                res = find_pdb_residue(c, res_id)
+                annotate(res, cdr)
+
+    else:
+        for res in c.get_unpacked_list():
+            cdr = residue_in_cdr(res.get_id()[1:], chain_type)
+            if cdr is not None:
+                annotate(res, cdr)
+
     return c
 
 

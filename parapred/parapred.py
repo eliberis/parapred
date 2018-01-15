@@ -141,6 +141,7 @@ def process_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id):
     probs = predict_sequence_probabilities(seqs)
 
     structure = produce_annotated_ab_structure(ab_h_chain, ab_l_chain,
+                                               {"H": None, "L": None},
                                                np.expand_dims(probs, -1))
     save_structure(structure, pdb_file)
 

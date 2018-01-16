@@ -78,7 +78,7 @@ from .structure_processor import get_structure_from_pdb, extract_cdrs_from_struc
 
 from .full_seq_processor import get_CDR_simple, NUM_EXTRA_RESIDUES, read_fasta
 
-MAX_CDR_LEN = 40
+MAX_CDR_LEN = 40  # For data encoding purposes only, feel free to increase 
 WEIGHTS = pkg_resources.resource_filename(__name__, "precomputed/weights.h5")
 
 _model = None

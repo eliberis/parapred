@@ -4,10 +4,10 @@
 import sys
 from .structure_processor import NUM_EXTRA_RESIDUES
 
-def get_CDR_simple(sequence ,allow=set(["H", "K", "L"]),scheme='chothia',seqname=''\
-        ,cdr1_scheme={'H':range(26-NUM_EXTRA_RESIDUES,34+NUM_EXTRA_RESIDUES),'L':range(24-NUM_EXTRA_RESIDUES,34+NUM_EXTRA_RESIDUES)} \
-        ,cdr2_scheme={'H':range(52-NUM_EXTRA_RESIDUES,56+NUM_EXTRA_RESIDUES),'L':range(50-NUM_EXTRA_RESIDUES,56+NUM_EXTRA_RESIDUES)} \
-        ,cdr3_scheme={'H':range(95-NUM_EXTRA_RESIDUES,102+NUM_EXTRA_RESIDUES),'L':range(89-NUM_EXTRA_RESIDUES,97+NUM_EXTRA_RESIDUES)}):
+def get_CDR_simple(sequence ,allow=set(["H", "K", "L"]),scheme='chothia',seqname='' \
+                   ,cdr1_scheme={'H':range(26-NUM_EXTRA_RESIDUES,33+NUM_EXTRA_RESIDUES),'L':range(24-NUM_EXTRA_RESIDUES,35+NUM_EXTRA_RESIDUES)} \
+                   ,cdr2_scheme={'H':range(52-NUM_EXTRA_RESIDUES,57+NUM_EXTRA_RESIDUES),'L':range(50-NUM_EXTRA_RESIDUES,57+NUM_EXTRA_RESIDUES)} \
+                   ,cdr3_scheme={'H':range(95-NUM_EXTRA_RESIDUES,103+NUM_EXTRA_RESIDUES),'L':range(89-NUM_EXTRA_RESIDUES,98+NUM_EXTRA_RESIDUES)}) :
     '''
     From a VH or VL amino acid sequences returns the three CDR sequences as determined from the input numbering (scheme) and the given ranges.
     default ranges are Chothia CDRs +/- NUM_EXTRA_RESIDUES residues per side.

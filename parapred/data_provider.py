@@ -3,7 +3,14 @@ import pandas as pd
 from os.path import isfile
 import sys
 from .structure_processor import *
-from .scrape import download_annotated_seq
+
+# Don't make webserver depend on dependencies of 'scrape'
+try:
+    from .scrape import download_annotated_seq
+except ImportError:
+    def download_annotated_seq(*args, **kwargs) :
+        raise Exception("download_annotated_seq is not available because scrape module was not correctly imported"
+                        " (missing lxml or requests dependencies?)")
 
 PDBS = "parapred/data/pdbs/{0}.pdb"
 MAX_CDR_LEN = 32  # 28 + 2 + 2

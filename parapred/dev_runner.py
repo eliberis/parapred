@@ -204,7 +204,7 @@ def show_binding_profiles(run):
     plot_binding_profiles(contact, parapred)
 
 
-def evaluate(test_dataset, weights="weights.h5"):
+def evaluate(test_dataset, weights="parapred/precomputed/weights.h5"):
     cache_file = test_dataset.split("/")[-1] + ".p"
     dataset = open_dataset(test_dataset, dataset_cache=cache_file)
     cdrs, lbls, masks = dataset["cdrs"], dataset["lbls"], dataset["masks"]
@@ -233,6 +233,20 @@ def print_neighbourhood_tops(weights="weights.h5"):
             print(tops[f][i], end='\t')
         print()
     print()
+
+
+def export_sequences(dataset):
+    for ag_search, ab_h_chain, ab_l_chain, _, seqs, pdb in load_chains(dataset):
+        res = get_cdrs_and_contact_info(ag_search, ab_h_chain, ab_l_chain, seqs)
+        if res is None:
+            continue
+
+        cdrs, contact, _ = res
+        for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
+            print("> {} {}".format(pdb, cdr_name))
+            print(" ".join(str(r[2][0])+r[2][1] for r in cdrs[cdr_name]))
+            print("".join(r[0] for r in cdrs[cdr_name]))
+            print("".join('1' if c else '0' for c in contact[cdr_name]))
 
 
 def main():

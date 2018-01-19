@@ -1,6 +1,7 @@
 import pickle
 import pandas as pd
 from os.path import isfile
+import sys
 from .structure_processor import *
 from .scrape import download_annotated_seq
 
@@ -52,9 +53,12 @@ def process_dataset(summary_file):
     for ag_search, ab_h_chain, ab_l_chain, _, seqs, pdb in load_chains(summary_file):
         print("Processing PDB: ", pdb)
 
-        cdrs, lbls, cdr_mask, (nic, nr) =\
-            process_chains(ag_search, ab_h_chain, ab_l_chain, seqs, pdb,
-                           max_cdr_len=MAX_CDR_LEN)
+        res = process_chains(ag_search, ab_h_chain, ab_l_chain, seqs, pdb,
+                             max_cdr_len=MAX_CDR_LEN)
+        if res is None:
+            continue
+
+        cdrs, lbls, cdr_mask, (nic, nr) = res
 
         num_in_contact += nic
         num_residues += nr
@@ -95,8 +99,7 @@ def open_dataset(summary_file, dataset_cache="processed-dataset.p"):
     return dataset
 
 
-def process_chains(ag_search, ab_h_chain, ab_l_chain, sequences, pdb, max_cdr_len):
-
+def get_cdrs_and_contact_info(ag_search, ab_h_chain, ab_l_chain, sequences):
     # Extract CDRs
     cdrs = {}
     cdrs.update(extract_cdrs(ab_h_chain, sequences["H"], "H"))
@@ -114,13 +117,26 @@ def process_chains(ag_search, ab_h_chain, ab_l_chain, sequences, pdb, max_cdr_le
         num_in_contact += sum(contact[cdr_name])
 
     if num_in_contact < 5:
-        print("Antibody has very few contact residues: ", num_in_contact)
+        print("Antibody has very few contact residues: ", num_in_contact, file=sys.stderr)
+        return None
+
+    return cdrs, contact, (num_in_contact, num_residues)
+
+
+def process_chains(ag_search, ab_h_chain, ab_l_chain, sequences, pdb, max_cdr_len):
+    results = get_cdrs_and_contact_info(ag_search, ab_h_chain, ab_l_chain, sequences)
 
     # Convert to matrices
     # TODO: could simplify with keras.preprocessing.sequence.pad_sequences
     cdr_mats = []
     cont_mats = []
     cdr_masks = []
+
+    if results is None:
+        return None
+
+    cdrs, contact, counters = results
+
     for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
         # Convert Residue entities to amino acid sequences
         cdr_chain = [r[0] for r in cdrs[cdr_name]]
@@ -143,10 +159,10 @@ def process_chains(ag_search, ab_h_chain, ab_l_chain, sequences, pdb, max_cdr_le
     lbls = np.stack(cont_mats)
     masks = np.stack(cdr_masks)
 
-    return cdrs, lbls, masks, (num_in_contact, num_residues)
+    return cdrs, lbls, masks, counters
 
 
-def download_annotated_sequences(dataset_desc_filename, cache_file="downloaded_seqs.p"):
+def download_annotated_sequences(dataset_desc_filename, cache_file="parapred/precomputed/downloaded_seqs.p"):
     df = pd.read_csv(dataset_desc_filename)
     output = {}
 

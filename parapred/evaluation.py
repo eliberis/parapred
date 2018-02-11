@@ -87,7 +87,7 @@ def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
         rate_schedule = lambda e: 0.001 if e >= 10 else 0.01
 
         model.fit([cdrs_train, np.squeeze(mask_train)],
-                  lbls_train, batch_size=32, epochs=16,
+                  lbls_train, batch_size=32, epochs=18,
                   # For informational purposes about the best number of epochs
                   # TODO: replace for proper evaluation
                   # validation_data=([cdrs_test, np.squeeze(mask_test)],

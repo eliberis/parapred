@@ -9,8 +9,8 @@ from .model import *
 from .plotting import *
 
 
-def single_run():
-    dataset = open_dataset("parapred/data/sabdab_27_jun_95_90.csv")
+def single_run(dataset_file):
+    dataset = open_dataset(dataset_file)
 
     max_cdr_len = dataset["max_cdr_len"]
     pos_class_weight = dataset["pos_class_weight"]
@@ -37,8 +37,8 @@ def single_run():
     lbls_test = lbls[indices[-test_size:]]
     masks_test = masks[indices[-test_size:]]
 
-    example_weight = np.squeeze((lbls_train * 1.5 + 1) * masks_train)
-    test_ex_weight = np.squeeze((lbls_test * 1.5 + 1) * masks_test)
+    example_weight = np.squeeze((lbls_train * 1.7 + 1) * masks_train)
+    test_ex_weight = np.squeeze((lbls_test * 1.7 + 1) * masks_test)
 
     rate_schedule = lambda e: 0.001 if e >= 10 else 0.01
 
@@ -59,30 +59,28 @@ def single_run():
     probs_flat = flatten_with_lengths(probs_test, test_seq_lens)
     lbls_flat = flatten_with_lengths(lbls_test, test_seq_lens)
 
-    compute_classifier_metrics([lbls_flat], [probs_flat], threshold=0.5)
+    compute_classifier_metrics([lbls_flat], [probs_flat])
 
 
-def full_run(dataset="parapred/data/sabdab_27_jun_95_90.csv", out_weights="weights.h5"):
+def full_run(dataset, out_weights="weights.h5"):
     cache_file = dataset.split("/")[-1] + ".p"
     dataset = open_dataset(dataset, dataset_cache=cache_file)
     cdrs, lbls, masks = dataset["cdrs"], dataset["lbls"], dataset["masks"]
 
-    sample_weight = np.squeeze((lbls * 1.5 + 1) * masks)
+    sample_weight = np.squeeze((lbls * 1.7 + 1) * masks)
     model = ab_seq_model(dataset["max_cdr_len"])
 
     rate_schedule = lambda e: 0.001 if e >= 10 else 0.01
 
     model.fit([cdrs, np.squeeze(masks)],
-              lbls, batch_size=32, epochs=16,
+              lbls, batch_size=32, epochs=18,
               sample_weight=sample_weight,
               callbacks=[LearningRateScheduler(rate_schedule)])
 
     model.save_weights(out_weights)
 
 
-def run_cv(dataset="parapred/data/sabdab_27_jun_95_90.csv",
-           output_folder="cv-ab-seq",
-           num_iters=10):
+def run_cv(dataset, output_folder, num_iters=10):
     cache_file = dataset.split("/")[-1] + ".p"
     dataset = open_dataset(dataset, dataset_cache=cache_file)
     model_factory = lambda: ab_seq_model(dataset["max_cdr_len"])
@@ -98,19 +96,18 @@ def run_cv(dataset="parapred/data/sabdab_27_jun_95_90.csv",
                       output_file, weights_template, seed=i)
 
 
-def process_cv_results(cv_result_folder="runs/cv-full-2Jan",
-                       abip_result_folder="runs/cv-full-ab-2Jan"):
+def process_cv_results(cv_result_folder, abip_result_folder, cv_num_iters=10):
     import matplotlib.pyplot as plt
     plt.rcParams["font.family"] = "Arial"
 
     for i, loop in enumerate(["H1", "H2", "H3", "L1", "L2", "L3"]):
         print("Classifier metrics for loop type", loop)
-        labels, probs = open_crossval_results(cv_result_folder, 10, i)
+        labels, probs = open_crossval_results(cv_result_folder, cv_num_iters, i)
         compute_classifier_metrics(labels, probs)
 
     # Plot PR curves
     print("Plotting PR curves")
-    labels, probs = open_crossval_results(cv_result_folder, 10)
+    labels, probs = open_crossval_results(cv_result_folder, cv_num_iters)
     labels_abip, probs_abip = open_crossval_results(abip_result_folder, 10)
 
     fig = plot_pr_curve(labels, probs, colours=("#0072CF", "#68ACE5"),
@@ -125,24 +122,23 @@ def process_cv_results(cv_result_folder="runs/cv-full-2Jan",
     compute_classifier_metrics(labels, probs)
 
 
-def plot_dataset_fraction_results(baseline, d60, d80, dfull):
+def plot_dataset_fraction_results(results):
     import matplotlib.pyplot as plt
     plt.rcParams["font.family"] = "Arial"
 
     print("Plotting PR curves")
-    labels_baseline, probs_baseline = open_crossval_results(baseline, 10)
-    labels_d60, probs_d60 = open_crossval_results(d60, 10)
-    labels_d80, probs_d80 = open_crossval_results(d80, 10)
-    labels_dfull, probs_dfull = open_crossval_results(dfull, 10)
 
-    fig = plot_pr_curve(labels_dfull, probs_dfull, colours=("#0072CF", "#68ACE5"),
-                        label="Parapred (239 entries)")
-    fig = plot_pr_curve(labels_d80, probs_d80, colours=("#EA7125", "#F3BD48"),
-                        label="Parapred (80% of data, 191 entries)", plot_fig=fig)
-    fig = plot_pr_curve(labels_d60, probs_d60, colours=("#55A51C", "#AAB300"),
-                        label="Parapred (60% of data, 143 entries)", plot_fig=fig)
-    fig = plot_pr_curve(labels_baseline, probs_baseline, colours=("#D6083B", "#EB99A9"),
-                        label="Parapred using ABiP data (148 entries)", plot_fig=fig)
+    colours = [("#0072CF", "#68ACE5"),
+               ("#EA7125", "#F3BD48"),
+               ("#55A51C", "#AAB300"),
+               ("#D6083B", "#EB99A9")]
+
+    fig = None
+    for i, (file, descr) in enumerate(results):
+        labels, probs = open_crossval_results(file, 10)
+        fig = plot_pr_curve(labels, probs, colours=colours[i], plot_fig=fig,
+                            label="Parapred ({})".format(descr))
+
     fig.savefig("fractions-pr.eps")
 
 
@@ -184,18 +180,18 @@ def patchdock_classify():
     print(capri_evaluate_test_structures("parapred/data/dock_test.csv", "results/parapred"))
 
 
-def show_binding_profiles(run):
+def show_binding_profiles(dataset, run):
     labels, probs = open_crossval_results(run, flatten_by_lengths=False)
     labels = labels[0]  # Labels are constant, any of the 10 runs would do
     probs = np.stack(probs).mean(axis=0)  # Mean binding probability across runs
 
-    contact = binding_profile("parapred/data/sabdab_27_jun_95_90.csv", labels)
+    contact = binding_profile(dataset, labels)
     print("Contact per-residue binding profile:")
     total = sum(list(contact.values()))
     contact = {k: v / total for k, v in contact.items()}
     print(contact)
 
-    parapred = binding_profile("parapred/data/sabdab_27_jun_95_90.csv", probs)
+    parapred = binding_profile(dataset, probs)
     print("Model's predictions' per-residue binding profile:")
     total = sum(list(parapred.values()))
     parapred = {k: v / total for k, v in parapred.items()}
@@ -220,7 +216,7 @@ def evaluate(test_dataset, weights="parapred/precomputed/weights.h5"):
     compute_classifier_metrics([l], [p])
 
 
-def print_neighbourhood_tops(weights="weights.h5"):
+def print_neighbourhood_tops(weights="parapred/precomputed/weights.h5"):
     tops = neighbourhood_tops(weights, top_k=10, num_filters_first=20)
 
     print("Top 10 sequences activating first 20 conv. filters:")
@@ -237,17 +233,18 @@ def print_neighbourhood_tops(weights="weights.h5"):
 
 def export_sequences(dataset):
     for ag_search, ab_h_chain, ab_l_chain, _, seqs, pdb in load_chains(dataset):
-        res = get_cdrs_and_contact_info(ag_search, ab_h_chain, ab_l_chain, seqs)
+        res = get_cdrs_and_contact_info(ag_search, ab_h_chain, ab_l_chain, seqs, pdb)
         if res is None:
             continue
 
         cdrs, contact, _ = res
         for cdr_name in ["H1", "H2", "H3", "L1", "L2", "L3"]:
-            print("> {} {}".format(pdb, cdr_name))
+            chain_id = pdb[1] if cdr_name.startswith("H") else pdb[2]
+            print("> {} {} {}".format(pdb[0], chain_id, cdr_name))
             print(" ".join(str(r[2][0])+r[2][1] for r in cdrs[cdr_name]))
             print("".join(r[0] for r in cdrs[cdr_name]))
             print("".join('1' if c else '0' for c in contact[cdr_name]))
 
 
 def main():
-    full_run()
+    full_run("parapred/data/dataset.csv")

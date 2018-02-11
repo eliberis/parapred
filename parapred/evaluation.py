@@ -4,11 +4,11 @@ from sklearn.model_selection import KFold
 from keras.callbacks import LearningRateScheduler, EarlyStopping
 from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve, matthews_corrcoef
 
-from .data_provider import load_chains
+from .data_provider import load_chains, process_chains
 from .structure_processor import save_chain, save_structure, \
     produce_annotated_ab_structure, extended_epitope, extract_cdrs, \
     aa_s, seq_to_one_hot
-from .model import conv_output_ab_seq_model
+from .model import conv_output_ab_seq_model, ab_seq_model
 from .patchdock_tools import output_patchdock_ab_constraint, \
     output_patchdock_ag_constraint, process_transformations
 
@@ -84,7 +84,7 @@ def kfold_cv_eval(model_func, dataset, output_file="crossval-data.p",
         # test_ex_weight = np.squeeze((lbls_test * 1.5 + 1) * mask_test)
         model = model_func()
 
-        rate_schedule = lambda e: 0.001 if e >= 5 else 0.01
+        rate_schedule = lambda e: 0.001 if e >= 10 else 0.01
 
         model.fit([cdrs_train, np.squeeze(mask_train)],
                   lbls_train, batch_size=32, epochs=16,
@@ -217,7 +217,7 @@ def open_crossval_results(folder="runs/cv-ab-seq", num_results=10,
     return labels, class_probabilities
 
 
-def binding_profile(summary_file, probs, threshold=0.5): # 0.565
+def binding_profile(summary_file, probs, threshold=0.5):
     binding_prof = {r: 0 for r in aa_s}
 
     for i, (_, ab_h_chain, ab_l_chain, _, ab_seq, pdb) in \
@@ -226,8 +226,8 @@ def binding_profile(summary_file, probs, threshold=0.5): # 0.565
 
         # Extract CDRs
         cdrs = {}
-        cdrs.update(extract_cdrs(ab_h_chain, ab_seq["H"], "H"))
-        cdrs.update(extract_cdrs(ab_l_chain, ab_seq["L"], "L"))
+        cdrs.update(extract_cdrs(ab_h_chain, ab_seq[pdb[1]], "H"))
+        cdrs.update(extract_cdrs(ab_l_chain, ab_seq[pdb[2]], "L"))
 
         p_struct = probs[6*i:6*(i+1)]
         for j, cdr_name in enumerate(["H1", "H2", "H3", "L1", "L2", "L3"]):
@@ -256,3 +256,23 @@ def neighbourhood_tops(weights, top_k=10, num_filters_first=20):
         idxs = act.argsort()[-top_k:][::-1]  # get indices for top k elements in descending order
         output.append([(candidates[idx]) for idx in idxs])
     return output
+
+
+def evaluate_individual_ab(max_cdr_len, ag_search, ab_h_chain, ab_l_chain, seqs, pdb):
+    print("Evaluating PDB {}".format(pdb))
+
+    cdrs, lbls, masks, (num_in_contact, num_residues) =\
+        process_chains(ag_search, ab_h_chain, ab_l_chain, seqs, pdb, max_cdr_len)
+
+    print("PDB {}, residues in contact: {}, overall: {}".format(pdb, num_in_contact, num_residues))
+
+    model = ab_seq_model(max_cdr_len)
+    model.load_weights("parapred/precomputed/weights.h5")
+
+    probs = model.predict([cdrs, np.squeeze(masks)])
+
+    test_seq_lens = np.sum(np.squeeze(masks), axis=1)
+    probs_flat = flatten_with_lengths(probs, test_seq_lens)
+    lbls_flat = flatten_with_lengths(lbls, test_seq_lens)
+
+    compute_classifier_metrics([lbls_flat], [probs_flat])

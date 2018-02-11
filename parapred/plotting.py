@@ -78,6 +78,8 @@ def plot_pr_curve(labels_test, probs_test, colours=("#0072CF", "#68ACE5"),
     ax.set_xlabel("Recall")
     ax.legend()
 
+    print("Average precision: {}".format(np.mean(avg_prec)))
+
     return plot_fig
 
 

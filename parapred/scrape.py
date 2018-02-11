@@ -22,9 +22,12 @@ def download_annotated_seq(pdb, hchain, lchain):
     ab_seqs = fv_info[0].xpath(".//div[@id='{}']".format(ab_seqs_div_id[1:]))
     chains = ab_seqs[0].xpath("div/table/tr")[1:]
 
+    if hchain == lchain:
+        lchain = lchain.lower()
+
     output = {}
-    for c in chains: # If both
-        chain_id = "H" if c[0][0].text.strip() == "VH" else "L"
+    for c in chains:
+        chain_id = hchain if c[0][0].text.strip() == "VH" else lchain
         aa_names = c[3].xpath("table/tr/th/text()")
         residues = c[3].xpath("table/tr/td/font/text()")
         chain = {}

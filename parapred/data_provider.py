@@ -17,8 +17,7 @@ MAX_CDR_LEN = 32  # 28 + 2 + 2
 
 
 def load_chains(dataset_desc_filename, sequence_cache_file="parapred/precomputed/downloaded_seqs.p"):
-    if not isfile(sequence_cache_file):
-        download_annotated_sequences(dataset_desc_filename, sequence_cache_file)
+    download_annotated_sequences(dataset_desc_filename, sequence_cache_file)
 
     with open(sequence_cache_file, "rb") as f:
         sequences = pickle.load(f)
@@ -30,14 +29,18 @@ def load_chains(dataset_desc_filename, sequence_cache_file="parapred/precomputed
         ab_l_chain = entry['Lchain']
         ag_chain = entry['antigen_chain']
 
+        if ag_chain == ab_l_chain or ag_chain == ab_l_chain:
+            print("Data mismatch, AG chain ID is the same as one of the AB chain IDs.")
+
+        if ab_h_chain == ab_l_chain:
+            ab_l_chain = ab_l_chain.lower()
+
         structure = get_structure_from_pdb(PDBS.format(pdb_name))
         model = structure[0]  # Structure only has one model
 
-        if "|" in ag_chain:  # 2 chains
-            c1, c2 = ag_chain.split(" | ")
-            ag_atoms = \
-                Selection.unfold_entities(model[c1], 'A') + \
-                Selection.unfold_entities(model[c2], 'A')
+        if "|" in ag_chain:  # Several chains
+            chain_ids = ag_chain.split(" | ")
+            ag_atoms = [a for c in chain_ids for a in Selection.unfold_entities(model[c], 'A')]
         else:  # 1 chain
             ag_atoms = Selection.unfold_entities(model[ag_chain], 'A')
 
@@ -46,7 +49,7 @@ def load_chains(dataset_desc_filename, sequence_cache_file="parapred/precomputed
         ag_chain_struct = None if "|" in ag_chain else model[ag_chain]
 
         yield ag_search, model[ab_h_chain], model[ab_l_chain], \
-              ag_chain_struct, sequences[pdb_name], pdb_name
+              ag_chain_struct, sequences[pdb_name], (pdb_name, ab_h_chain, ab_l_chain)
 
 
 def process_dataset(summary_file):
@@ -106,11 +109,11 @@ def open_dataset(summary_file, dataset_cache="processed-dataset.p"):
     return dataset
 
 
-def get_cdrs_and_contact_info(ag_search, ab_h_chain, ab_l_chain, sequences):
+def get_cdrs_and_contact_info(ag_search, ab_h_chain, ab_l_chain, sequences, pdb):
     # Extract CDRs
     cdrs = {}
-    cdrs.update(extract_cdrs(ab_h_chain, sequences["H"], "H"))
-    cdrs.update(extract_cdrs(ab_l_chain, sequences["L"], "L"))
+    cdrs.update(extract_cdrs(ab_h_chain, sequences[pdb[1]], "H"))
+    cdrs.update(extract_cdrs(ab_l_chain, sequences[pdb[2]], "L"))
 
     # Compute ground truth -- contact information
     num_residues = 0
@@ -131,7 +134,7 @@ def get_cdrs_and_contact_info(ag_search, ab_h_chain, ab_l_chain, sequences):
 
 
 def process_chains(ag_search, ab_h_chain, ab_l_chain, sequences, pdb, max_cdr_len):
-    results = get_cdrs_and_contact_info(ag_search, ab_h_chain, ab_l_chain, sequences)
+    results = get_cdrs_and_contact_info(ag_search, ab_h_chain, ab_l_chain, sequences, pdb)
 
     # Convert to matrices
     # TODO: could simplify with keras.preprocessing.sequence.pad_sequences
@@ -171,16 +174,28 @@ def process_chains(ag_search, ab_h_chain, ab_l_chain, sequences, pdb, max_cdr_le
 
 def download_annotated_sequences(dataset_desc_filename, cache_file="parapred/precomputed/downloaded_seqs.p"):
     df = pd.read_csv(dataset_desc_filename)
-    output = {}
 
-    for _, entry in df.iterrows():  # Do in parallel
+    output = {}
+    if isfile(cache_file):
+        with open(cache_file, "rb") as f:
+            output = pickle.load(f)
+
+    for _, entry in df.iterrows():  # TODO: Do in parallel
         pdb_name = entry['pdb']
         ab_h_chain = entry['Hchain']
         ab_l_chain = entry['Lchain']
 
+        if ab_h_chain == ab_l_chain:
+            ab_l_chain = ab_l_chain.lower()
+
+        out = output.get(pdb_name, {})
+        if ab_l_chain in out and ab_l_chain in out:
+            continue
+
         print("Downloading " + pdb_name)
         seq = download_annotated_seq(pdb_name, ab_h_chain, ab_l_chain)
-        output[pdb_name] = seq
+        out.update(seq)
+        output[pdb_name] = out
 
     with open(cache_file, "wb") as f:
         pickle.dump(output, f)

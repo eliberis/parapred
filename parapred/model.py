@@ -6,7 +6,7 @@ from keras.layers.merge import concatenate, add
 import keras.backend as K
 from keras.regularizers import l2
 
-from .data_provider import NUM_FEATURES
+from .structure_processor import NUM_FEATURES
 
 
 def false_neg(y_true, y_pred):

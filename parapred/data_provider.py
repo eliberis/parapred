@@ -5,6 +5,7 @@ import pandas as pd
 from os.path import isfile
 import sys
 from .structure_processor import *
+from Bio.PDB import NeighborSearch
 
 # Don't make webserver depend on dependencies of 'scrape'
 try:

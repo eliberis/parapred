@@ -1,5 +1,7 @@
 # Parapred --- antibody binding residue prediction
 
+The original implementation of methodology described in ["Parapred: antibody paratope prediction using convolutional and recurrent neural networks" by Liberis et al.](https://academic.oup.com/bioinformatics/article/34/17/2944/4972995)
+
 ## Install
 
 Requirements:

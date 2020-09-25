@@ -9,7 +9,7 @@ setup(
     install_requires=[
         "Keras==2.0.6",
         "pandas>=0.19.2,<0.20",
-        "tensorflow==1.2.1",
+        "tensorflow==1.15.4",
         "numpy>=1.13",
         "matplotlib>=2.0.0",
         "scikit-learn>=0.18,<0.19",

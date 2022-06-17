@@ -6,7 +6,7 @@ h5py==2.6.0
 Keras==2.0.6
 matplotlib==2.0.0
 nltk==3.2.2
-numpy==1.13.1
+numpy==1.21.0
 packaging==16.8
 pandas==0.19.2
 protobuf==3.4.0

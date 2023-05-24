@@ -72,6 +72,7 @@ from pandas import read_csv
 import numpy as np
 import pkg_resources
 import sys
+import traceback
 
 from .structure_processor import get_structure_from_pdb, extract_cdrs_from_structure, \
     residue_seq_to_one, produce_annotated_ab_structure, save_structure, aa_s, \
@@ -167,9 +168,9 @@ def process_multiple_pdbs(pdb_descr_file, pdb_folder):
         try:
             process_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id)
         except Exception as e:
-            sys.stderr.write('Skipping {pdb_name} with erorr. \n')
+            sys.stderr.write('\nSkipping {pdb_name} with erorr. \n')
             sys.stderr.write("Error below:\n")
-            sys.stderr.write(str(e)+'\n')
+            traceback.print_exc(file=sys.stderr)
             sys.stderr.flush()
             continue
 
@@ -217,9 +218,9 @@ def process_fasta_file(fastafile) :
         try:
             process_full_VH_VL_sequence( str(srec.seq) )
         except Exception as e:
-            sys.stderr.write(f'Erorr processing {srec.name}. Skipping\n')
+            sys.stderr.write(f'\nErorr processing {srec.name}. Skipping\n')
             sys.stderr.write("Error message below: \n")
-            sys.stderr.write(str(e)+'\n')
+            traceback.print_exc(file=sys.stderr)
             sys.stderr.flush()
             continue
 

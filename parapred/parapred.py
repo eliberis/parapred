@@ -163,7 +163,13 @@ def process_multiple_pdbs(pdb_descr_file, pdb_folder):
             pdb_name = pdb_name + ".pdb"
 
         pdb_file = pdb_folder + "/" + pdb_name
-        process_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id)
+        try:
+            process_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id)
+        except Exception as e:
+            print('Skipping {pdb_name} with erorr. ')
+            print("Error below:")
+            print(e)
+            continue
 
 
 def process_sequences(seqs):
@@ -206,7 +212,14 @@ def process_fasta_file(fastafile) :
     sequences,_ = read_fasta(fastafile)
     for srec in sequences :
         print("\n> %s" % (srec.name))
-        process_full_VH_VL_sequence( str(srec.seq) )
+        try:
+            process_full_VH_VL_sequence( str(srec.seq) )
+        except Exception as e:
+            print(f'Erorr processing {srec.name}. Skipping')
+            print("Error message below: ")
+            print(e)
+            continue
+
 
 
 def main():

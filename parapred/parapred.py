@@ -169,7 +169,7 @@ def process_multiple_pdbs(pdb_descr_file, pdb_folder):
         except Exception as e:
             sys.stderr.write('Skipping {pdb_name} with erorr. ')
             sys.stderr.write("Error below:")
-            sys.stderr.write(e)
+            sys.stderr.write(str(e))
             continue
 
 
@@ -218,7 +218,7 @@ def process_fasta_file(fastafile) :
         except Exception as e:
             sys.stderr.write(f'Erorr processing {srec.name}. Skipping')
             sys.stderr.write("Error message below: ")
-            sys.stderr.write(e)
+            sys.stderr.write(str(e))
             continue
 
 

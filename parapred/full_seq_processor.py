@@ -54,7 +54,7 @@ def get_CDR_simple(sequence ,allow=set(["H", "K", "L"]),scheme='chothia',seqname
         elif num_tuple[0] in cdr3_scheme: cdr3+=res
 
     # put in parapred formta
-    cdrs={'CDR1':cdr1,'CDR2':cdr2,'CDR3':cdr3}
+    cdrs={'CDR1':cdr1.replace('-',''),'CDR2':cdr2.replace('-',''),'CDR3':cdr3.replace('-','')}
     return cdrs
 
 class FakeSeq :

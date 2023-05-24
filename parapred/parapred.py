@@ -71,6 +71,7 @@ from docopt import docopt
 from pandas import read_csv
 import numpy as np
 import pkg_resources
+import sys
 
 from .structure_processor import get_structure_from_pdb, extract_cdrs_from_structure, \
     residue_seq_to_one, produce_annotated_ab_structure, save_structure, aa_s, \
@@ -166,9 +167,9 @@ def process_multiple_pdbs(pdb_descr_file, pdb_folder):
         try:
             process_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id)
         except Exception as e:
-            print('Skipping {pdb_name} with erorr. ')
-            print("Error below:")
-            print(e)
+            sys.stderr.write('Skipping {pdb_name} with erorr. ')
+            sys.stderr.write("Error below:")
+            sys.stderr.write(e)
             continue
 
 
@@ -215,9 +216,9 @@ def process_fasta_file(fastafile) :
         try:
             process_full_VH_VL_sequence( str(srec.seq) )
         except Exception as e:
-            print(f'Erorr processing {srec.name}. Skipping')
-            print("Error message below: ")
-            print(e)
+            sys.stderr.write(f'Erorr processing {srec.name}. Skipping')
+            sys.stderr.write("Error message below: ")
+            sys.stderr.write(e)
             continue
 
 

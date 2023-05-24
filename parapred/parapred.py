@@ -167,9 +167,10 @@ def process_multiple_pdbs(pdb_descr_file, pdb_folder):
         try:
             process_single_pdb(pdb_file, ab_h_chain_id, ab_l_chain_id)
         except Exception as e:
-            sys.stderr.write('Skipping {pdb_name} with erorr. ')
-            sys.stderr.write("Error below:")
-            sys.stderr.write(str(e))
+            sys.stderr.write('Skipping {pdb_name} with erorr. \n')
+            sys.stderr.write("Error below:\n")
+            sys.stderr.write(str(e)+'\n')
+            sys.stderr.flush()
             continue
 
 
@@ -216,9 +217,10 @@ def process_fasta_file(fastafile) :
         try:
             process_full_VH_VL_sequence( str(srec.seq) )
         except Exception as e:
-            sys.stderr.write(f'Erorr processing {srec.name}. Skipping')
-            sys.stderr.write("Error message below: ")
-            sys.stderr.write(str(e))
+            sys.stderr.write(f'Erorr processing {srec.name}. Skipping\n')
+            sys.stderr.write("Error message below: \n")
+            sys.stderr.write(str(e)+'\n')
+            sys.stderr.flush()
             continue
 
 
